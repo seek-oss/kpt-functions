@@ -40,12 +40,18 @@ test:
 	@$(call banner,Running tests)
 	@go test ./...
 
-.PHONY: build-$(functions)
-build-$(functions):
-	@$(call banner,Building Kpt function gantry-$(functions):$(VERSION))
-	docker build -t gantry-$(functions):$(VERSION) --build-arg FUNCTION=$(functions) .
+.PHONY: build-all
+build-all: $(addprefix build-,$(functions))
 
-.PHONY: publish-$(functions)
-publish-$(functions): build-$(functions)
-	@$(call banner,Publishing Kpt function gantry-$(functions):$(VERSION))
-	docker build -t gantry-$(functions):$(VERSION) .
+.PHONY: publish-all
+publish-all: $(addprefix publish,$(functions))
+
+.PHONY: build-%
+build-%:
+	@$(call banner,Building Kpt function seek/$*:$(VERSION))
+	docker build . -t seek/kpt-$*:$(VERSION) --build-arg FUNCTION=$*
+
+.PHONY: publish-%
+publish-%: build-%
+	@$(call banner,Publishing Kpt function seek/$*:$(VERSION))
+	docker push seek/kpt-$*:$(VERSION)
