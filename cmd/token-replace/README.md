@@ -23,7 +23,7 @@ kind: ConfigMap
 metadata:
   name: example
   namespace: example
-  labels:
+  annotations:
     kpt.seek.com/token-replace: enabled
 data:
   template.tmpl: |

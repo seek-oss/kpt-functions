@@ -37,7 +37,7 @@ func (tr *TokenReplacer) Filter(rn *yaml.RNode) (*yaml.RNode, error) {
     return nil, err
   }
 
-  if meta.Labels[tokenReplaceEnabledLabelKey] != tokenReplaceEnabledLabelValue {
+  if meta.Annotations[tokenReplaceEnabledLabelKey] != tokenReplaceEnabledLabelValue {
     return rn, nil
   }
 
