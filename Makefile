@@ -44,7 +44,7 @@ test:
 build-all: $(addprefix build-,$(functions))
 
 .PHONY: publish-all
-publish-all: $(addprefix publish,$(functions))
+publish-all: $(addprefix publish-,$(functions))
 
 .PHONY: build-%
 build-%:
