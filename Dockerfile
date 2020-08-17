@@ -7,4 +7,4 @@ RUN go build -v -o /usr/local/bin/fn cmd/${FUNCTION}/*.go
 
 FROM alpine:latest
 COPY --from=0 /usr/local/bin/fn /usr/local/bin/fn
-CMD ["/usr/local/bin/func"]
+CMD ["/usr/local/bin/fn"]

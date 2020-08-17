@@ -10,7 +10,7 @@ metadata:
   annotations:
     config.kubernetes.io/function: |
       container:
-        image: gantry-token-replace:latest
+        image: seek/kpt-token-replace:latest
 spec:
   replacements:
   - token: "$region"
@@ -23,7 +23,7 @@ kind: ConfigMap
 metadata:
   name: example
   namespace: example
-  labels:
+  annotations:
     kpt.seek.com/token-replace: enabled
 data:
   template.tmpl: |

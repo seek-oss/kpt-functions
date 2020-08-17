@@ -1,15 +1,15 @@
 package fns
 
 import (
-  "bytes"
-  "github.com/google/go-cmp/cmp"
-  "sigs.k8s.io/kustomize/kyaml/fn/framework"
-  "sigs.k8s.io/kustomize/kyaml/yaml"
-  "testing"
+	"bytes"
+	"github.com/google/go-cmp/cmp"
+	"sigs.k8s.io/kustomize/kyaml/fn/framework"
+	"sigs.k8s.io/kustomize/kyaml/yaml"
+	"testing"
 )
 
 func TestTokenReplacer_Filter(t *testing.T) {
-  input := bytes.NewBufferString(`
+	input := bytes.NewBufferString(`
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -18,7 +18,7 @@ items:
   metadata:
     name: example
     namespace: example
-    labels:
+    annotations:
       kpt.seek.com/token-replace: enabled
   data:
     template.tmpl: |
@@ -40,31 +40,30 @@ functionConfig:
     - token: "$cluster"
       value: development-a
 `)
-  output := &bytes.Buffer{}
+	output := &bytes.Buffer{}
 
+	config := TokenReplaceConfig{}
+	resourceList := framework.ResourceList{
+		Reader:         input,
+		Writer:         output,
+		FunctionConfig: &config,
+	}
+	if err := resourceList.Read(); err != nil {
+		t.Fatal(err)
+	}
 
-  config := TokenReplaceConfig{}
-  resourceList := framework.ResourceList{
-    Reader: input,
-    Writer: output,
-    FunctionConfig: &config,
-  }
-  if err := resourceList.Read(); err != nil {
-    t.Fatal(err)
-  }
+	tokenReplacer := TokenReplacer{Config: &config}
+	for i := range resourceList.Items {
+		if err := resourceList.Items[i].PipeE(&tokenReplacer); err != nil {
+			t.Fatal(err)
+		}
+	}
 
-  tokenReplacer := TokenReplacer{Config: &config}
-  for i := range resourceList.Items {
-    if err := resourceList.Items[i].PipeE(&tokenReplacer); err != nil {
-      t.Fatal(err)
-    }
-  }
+	if err := resourceList.Write(); err != nil {
+		t.Fatal(err)
+	}
 
-  if err := resourceList.Write(); err != nil {
-    t.Fatal(err)
-  }
-
-  expected := `
+	expected := `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -73,7 +72,7 @@ items:
   metadata:
     name: example
     namespace: example
-    labels:
+    annotations:
       kpt.seek.com/token-replace: enabled
   data:
     template.tmpl: |
@@ -96,11 +95,11 @@ functionConfig:
       value: development-a
 `
 
-  if diff := cmp.Diff(normaliseYAML(expected), normaliseYAML(output.String())); diff != "" {
-    t.Errorf("(-want +got)\n%s", diff)
-  }
+	if diff := cmp.Diff(normaliseYAML(expected), normaliseYAML(output.String())); diff != "" {
+		t.Errorf("(-want +got)\n%s", diff)
+	}
 }
 
 func normaliseYAML(doc string) string {
-  return yaml.MustParse(doc).MustString()
+	return yaml.MustParse(doc).MustString()
 }

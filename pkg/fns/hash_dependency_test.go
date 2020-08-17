@@ -1,23 +1,23 @@
 package fns
 
 import (
-  "bytes"
-  "github.com/google/go-cmp/cmp"
-  "sigs.k8s.io/kustomize/kyaml/fn/framework"
-  "testing"
+	"bytes"
+	"github.com/google/go-cmp/cmp"
+	"sigs.k8s.io/kustomize/kyaml/fn/framework"
+	"testing"
 )
 
 type TestCase struct {
-  testCase string
-  input string
-  expectedOutput string
+	testCase       string
+	input          string
+	expectedOutput string
 }
 
 func TestHashDependency_Filter(t *testing.T) {
-  testCases := []TestCase{
-    {
-      testCase: "Basic replacement",
-      input: `
+	testCases := []TestCase{
+		{
+			testCase: "Basic replacement",
+			input: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -47,7 +47,7 @@ functionConfig:
           image: gantry-hash-dependency:latest
   spec: {}
 `,
-      expectedOutput: `
+			expectedOutput: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -78,10 +78,10 @@ functionConfig:
           image: gantry-hash-dependency:latest
   spec: {}
 `,
-    },
-    {
-      testCase: "Hash target not found",
-      input: `
+		},
+		{
+			testCase: "Hash target not found",
+			input: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -111,7 +111,7 @@ functionConfig:
           image: gantry-hash-dependency:latest
   spec: {}
 `,
-      expectedOutput: `
+			expectedOutput: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -141,10 +141,10 @@ functionConfig:
           image: gantry-hash-dependency:latest
   spec: {}
 `,
-    },
-    {
-      testCase: "Recomputes hash when label is already there",
-      input: `
+		},
+		{
+			testCase: "Recomputes hash when label is already there",
+			input: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -175,7 +175,7 @@ functionConfig:
           image: gantry-hash-dependency:latest
   spec: {}
 `,
-      expectedOutput: `
+			expectedOutput: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -206,10 +206,10 @@ functionConfig:
           image: gantry-hash-dependency:latest
   spec: {}
 `,
-    },
-    {
-      testCase: "Hashes multiple targets",
-      input: `
+		},
+		{
+			testCase: "Hashes multiple targets",
+			input: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -246,7 +246,7 @@ functionConfig:
           image: gantry-hash-dependency:latest
   spec: {}
 `,
-      expectedOutput: `
+			expectedOutput: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -285,39 +285,38 @@ functionConfig:
           image: gantry-hash-dependency:latest
   spec: {}
 `,
-    },
-  }
+		},
+	}
 
-  for index := range testCases {
-    testCase := testCases[index]
+	for index := range testCases {
+		testCase := testCases[index]
 
-    output := &bytes.Buffer{}
+		output := &bytes.Buffer{}
 
-    config := HashDependencyConfig{}
-    resourceList := framework.ResourceList{
-      Reader: bytes.NewBufferString(testCase.input),
-      Writer: output,
-      FunctionConfig: &config,
-    }
-    if err := resourceList.Read(); err != nil {
-      t.Fatal(err)
-    }
+		config := HashDependencyConfig{}
+		resourceList := framework.ResourceList{
+			Reader:         bytes.NewBufferString(testCase.input),
+			Writer:         output,
+			FunctionConfig: &config,
+		}
+		if err := resourceList.Read(); err != nil {
+			t.Fatal(err)
+		}
 
-    dependencyHasher := DependencyHasher{ResourceListItems: resourceList.Items}
-    for i := range resourceList.Items {
-      if err := resourceList.Items[i].PipeE(&dependencyHasher); err != nil {
-        t.Fatal(err)
-      }
-    }
+		dependencyHasher := DependencyHasher{ResourceListItems: resourceList.Items}
+		for i := range resourceList.Items {
+			if err := resourceList.Items[i].PipeE(&dependencyHasher); err != nil {
+				t.Fatal(err)
+			}
+		}
 
-    if err := resourceList.Write(); err != nil {
-      t.Fatal(err)
-    }
+		if err := resourceList.Write(); err != nil {
+			t.Fatal(err)
+		}
 
+		if diff := cmp.Diff(normaliseYAML(testCase.expectedOutput), normaliseYAML(output.String())); diff != "" {
+			t.Errorf("Test case failed: %s\n(-want +got)\n%s", testCase.testCase, diff)
+		}
 
-    if diff := cmp.Diff(normaliseYAML(testCase.expectedOutput), normaliseYAML(output.String())); diff != "" {
-      t.Errorf("Test case failed: %s\n(-want +got)\n%s", testCase.testCase, diff)
-    }
-
-  }
+	}
 }

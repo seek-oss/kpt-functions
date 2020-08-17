@@ -10,7 +10,7 @@ metadata:
   annotations:
     config.kubernetes.io/function: |
       container:
-        image: gantry-hash-dependency:latest
+        image: seek/kpt-hash-dependency:latest
 spec: {}
 ```
 
