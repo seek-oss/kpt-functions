@@ -10,7 +10,7 @@ jobs:
       - uses: actions/setup-go@v2
         with:
           go-version: '^1.14'
-      - name: Lint
-        run:  sudo snap install shfmt && make lint
+#      - name: Lint
+#        run: make lint
       - name: Run tests
         run: make test
