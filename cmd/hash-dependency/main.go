@@ -10,9 +10,9 @@ import (
 func main() {
 	config := fns.HashDependencyConfig{}
 	resourceList := &framework.ResourceList{FunctionConfig: &config}
-	dependencyHasher := fns.DependencyHasher{ResourceListItems: resourceList.Items}
 
 	cmd := framework.Command(resourceList, func() error {
+    dependencyHasher := fns.DependencyHasher{ResourceListItems: resourceList.Items}
 		for i := range resourceList.Items {
 			if err := resourceList.Items[i].PipeE(&dependencyHasher); err != nil {
 				return err
