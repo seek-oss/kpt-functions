@@ -12,6 +12,8 @@ const hashDependencyAnnotationPrefix string = "kpt.seek.com/hash-dependency"
 var podSpecKinds = [...]string{
   "Deployment",
   "DaemonSet",
+  "ReplicaSet",
+  "StatefulSet",
 }
 
 type HashDependencyConfig struct {
