@@ -48,10 +48,10 @@ publish-all: $(addprefix publish-,$(functions))
 
 .PHONY: build-%
 build-%:
-	@$(call banner,Building Kpt function seek/$*:$(VERSION))
+	@$(call banner,Building Kpt function seek/kpt-$*:$(VERSION))
 	docker build . -t seek/kpt-$*:$(VERSION) --build-arg FUNCTION=$*
 
 .PHONY: publish-%
 publish-%: build-%
-	@$(call banner,Publishing Kpt function seek/$*:$(VERSION))
+	@$(call banner,Publishing Kpt function seek/kpt-$*:$(VERSION))
 	docker push seek/kpt-$*:$(VERSION)
