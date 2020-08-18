@@ -1,12 +1,11 @@
 package fns
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
-  "os"
+  "crypto/sha256"
+  "encoding/hex"
+  "fmt"
   "sigs.k8s.io/kustomize/kyaml/yaml"
-	"strings"
+  "strings"
 )
 
 const hashDependencyAnnotationPrefix string = "kpt.seek.com/hash-dependency"
@@ -31,7 +30,6 @@ func (dh *DependencyHasher) Filter(rn *yaml.RNode) (*yaml.RNode, error) {
 
 	for k, v := range meta.Annotations {
 		if strings.HasPrefix(k, hashDependencyAnnotationPrefix) {
-      fmt.Fprintf(os.Stderr, "hashing dependency for %s/%s\n", meta.Namespace, meta.Name)
 			err := dh.hashDependency(rn, meta.Namespace, v)
 			if err != nil {
 				return rn, err
@@ -58,7 +56,6 @@ func (dh *DependencyHasher) Filter(rn *yaml.RNode) (*yaml.RNode, error) {
     }
     for k, v := range podMeta.Annotations {
       if strings.HasPrefix(k, hashDependencyAnnotationPrefix) {
-        fmt.Fprintf(os.Stderr, "hashing pod dependency for %s/%s\n", meta.Namespace, meta.Name)
         err := dh.hashDependency(podSpec, meta.Namespace, v)
         if err != nil {
           return rn, err
