@@ -48,7 +48,7 @@ spec:
 ...
 ```
 
-Hashing also works inside of a Deployment PodSpec, for example:
+Hashing also works inside of a PodSpec in Deployments and DaemonSets, for example:
 
 ```yaml
 apiVersion: apps/v1

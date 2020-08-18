@@ -8,7 +8,11 @@ import (
 	"strings"
 )
 
-const hashDependencyAnnotationPrefix = "kpt.seek.com/hash-dependency"
+const hashDependencyAnnotationPrefix string = "kpt.seek.com/hash-dependency"
+var podSpecKinds = [...]string{
+  "Deployment",
+  "DaemonSet",
+}
 
 type HashDependencyConfig struct {
 	Spec Spec `yaml:"spec,omitempty"`
@@ -33,14 +37,22 @@ func (dh *DependencyHasher) Filter(rn *yaml.RNode) (*yaml.RNode, error) {
 		}
 	}
 
-	if strings.EqualFold(meta.Kind, "Deployment") {
+	canHavePodSpec := false
+
+	for i := range podSpecKinds {
+	  if strings.EqualFold(meta.Kind, podSpecKinds[i]) {
+	    canHavePodSpec = true
+    }
+  }
+
+	if canHavePodSpec {
 	  podSpec, err := rn.Pipe(yaml.Get("spec"), yaml.Get("template"))
 	  if err != nil {
-	    return rn, fmt.Errorf("failed to find spec.template field of Deployment, possibly malformed Deployment spec: %s", err)
+	    return rn, fmt.Errorf("failed to find spec.template field, possibly malformed spec: %s", err)
     }
     podMeta, err := podSpec.GetMeta()
     if err != nil {
-      return rn, fmt.Errorf("failed to get pod meta from Deployment spec: %s", err)
+      return rn, fmt.Errorf("failed to get pod meta from spec: %s", err)
     }
     for k, v := range podMeta.Annotations {
       if strings.HasPrefix(k, hashDependencyAnnotationPrefix) {
