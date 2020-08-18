@@ -15,7 +15,6 @@ var podSpecKinds = [...]string{
 }
 
 type HashDependencyConfig struct {
-	Spec Spec `yaml:"spec,omitempty"`
 }
 
 type DependencyHasher struct {
