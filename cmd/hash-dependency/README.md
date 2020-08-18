@@ -18,7 +18,7 @@ Example file
 
 ```yaml
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: example
   namespace: example
@@ -37,7 +37,7 @@ After adding hash
 
 ```yaml
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: example
   namespace: example
@@ -47,3 +47,39 @@ metadata:
 spec:
 ...
 ```
+
+Hashing also works inside of a Deployment PodSpec, for example:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-deployment
+  namespace: example
+spec:
+  template:
+    metadata:
+      annotations:
+        kpt.seek.com/hash-dependency/config-map: ConfigMap/my-config-map
+...
+```
+
+will hash to:
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-deployment
+  namespace: example
+spec:
+  template:
+    metadata:
+      annotations:
+        kpt.seek.com/hash-dependency/config-map: ConfigMap/my-config-map
+        ConfigMap/my-config-map: abcdef12345689
+...
+```
+
+This allows you to have a pod as part of a deployment that depends on another resource, with the pods being updated
+when the hash of the dependant resource changes.

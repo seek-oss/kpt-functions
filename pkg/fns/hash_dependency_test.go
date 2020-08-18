@@ -286,6 +286,171 @@ functionConfig:
   spec: {}
 `,
 		},
+    {
+      testCase: "Hashes annotations within a Deployment pod spec",
+      input: `
+apiVersion: config.kubernetes.io/v1alpha1
+kind: ResourceList
+items:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: example
+    namespace: example
+  spec:
+    template:
+      metadata:
+        annotations:
+          kpt.seek.com/hash-dependency/config-map: ConfigMap/my-config-map
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: my-config-map
+    namespace: example
+  data: {}
+- apiVersion: custom-namespace.seek.com/v1
+  kind: AnotherType
+  metadata:
+    name: another-type
+    namespace: example
+  data: {}
+
+functionConfig:
+  apiVersion: kpt.seek.com/v1alpha1
+  kind: HashDependency
+  metadata:
+    name: hash-dependency
+    annotations:
+      config.kubernetes.io/function: |
+        container:
+          image: gantry-hash-dependency:latest
+  spec: {}
+`,
+      expectedOutput: `
+apiVersion: config.kubernetes.io/v1alpha1
+kind: ResourceList
+items:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: example
+    namespace: example
+  spec:
+    template:
+      metadata:
+        annotations:
+          kpt.seek.com/hash-dependency/config-map: ConfigMap/my-config-map
+          ConfigMap/my-config-map: 'dfa6c3c082ad3ee44f29b13328af93f4c00e9438e93f7c8b5a58dd389cd491e6'
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: my-config-map
+    namespace: example
+  data: {}
+- apiVersion: custom-namespace.seek.com/v1
+  kind: AnotherType
+  metadata:
+    name: another-type
+    namespace: example
+  data: {}
+
+functionConfig:
+  apiVersion: kpt.seek.com/v1alpha1
+  kind: HashDependency
+  metadata:
+    name: hash-dependency
+    annotations:
+      config.kubernetes.io/function: |
+        container:
+          image: gantry-hash-dependency:latest
+  spec: {}
+`,
+    },
+    {
+      testCase: "Hashes annotations within a Deployment pod spec and the Deployment metadata",
+      input: `
+apiVersion: config.kubernetes.io/v1alpha1
+kind: ResourceList
+items:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: example
+    namespace: example
+    annotations:
+      kpt.seek.com/hash-dependency/config-map: ConfigMap/my-config-map
+  spec:
+    template:
+      metadata:
+        annotations:
+          kpt.seek.com/hash-dependency/config-map: ConfigMap/my-config-map
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: my-config-map
+    namespace: example
+  data: {}
+- apiVersion: custom-namespace.seek.com/v1
+  kind: AnotherType
+  metadata:
+    name: another-type
+    namespace: example
+  data: {}
+
+functionConfig:
+  apiVersion: kpt.seek.com/v1alpha1
+  kind: HashDependency
+  metadata:
+    name: hash-dependency
+    annotations:
+      config.kubernetes.io/function: |
+        container:
+          image: gantry-hash-dependency:latest
+  spec: {}
+`,
+      expectedOutput: `
+apiVersion: config.kubernetes.io/v1alpha1
+kind: ResourceList
+items:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: example
+    namespace: example
+    annotations:
+      kpt.seek.com/hash-dependency/config-map: ConfigMap/my-config-map
+      ConfigMap/my-config-map: 'dfa6c3c082ad3ee44f29b13328af93f4c00e9438e93f7c8b5a58dd389cd491e6'
+  spec:
+    template:
+      metadata:
+        annotations:
+          kpt.seek.com/hash-dependency/config-map: ConfigMap/my-config-map
+          ConfigMap/my-config-map: 'dfa6c3c082ad3ee44f29b13328af93f4c00e9438e93f7c8b5a58dd389cd491e6'
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: my-config-map
+    namespace: example
+  data: {}
+- apiVersion: custom-namespace.seek.com/v1
+  kind: AnotherType
+  metadata:
+    name: another-type
+    namespace: example
+  data: {}
+
+functionConfig:
+  apiVersion: kpt.seek.com/v1alpha1
+  kind: HashDependency
+  metadata:
+    name: hash-dependency
+    annotations:
+      config.kubernetes.io/function: |
+        container:
+          image: gantry-hash-dependency:latest
+  spec: {}
+`,
+    },
 	}
 
 	for index := range testCases {
