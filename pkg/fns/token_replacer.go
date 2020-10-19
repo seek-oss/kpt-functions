@@ -1,8 +1,8 @@
 package fns
 
 import (
-	"sigs.k8s.io/kustomize/kyaml/yaml"
-	"strings"
+  "sigs.k8s.io/kustomize/kyaml/yaml"
+  "strings"
 )
 
 const (
@@ -40,27 +40,31 @@ func (tr *TokenReplacer) Filter(rn *yaml.RNode) (*yaml.RNode, error) {
 		return rn, nil
 	}
 
-	// We only perform token replacement on ConfigMaps for now
-	if meta.Kind == "ConfigMap" {
-		return rn, tr.processConfigMap(rn)
-	}
-
-	return rn, nil
+  return rn, tr.replaceTokens(rn)
 }
 
-func (tr *TokenReplacer) processConfigMap(rn *yaml.RNode) error {
-	data := rn.Field("data")
-	if data == nil {
-		return nil
-	}
+func (tr *TokenReplacer) replaceTokens(rn *yaml.RNode) error {
+  process := func(rn *yaml.RNode) error {
+    for _, r := range tr.Config.Spec.Replacements {
+      if rn.YNode().Kind == yaml.ScalarNode {
+        rn.YNode().Value = strings.ReplaceAll(rn.YNode().Value, r.Token, r.Value)
+      } else {
+        return tr.replaceTokens(rn)
+      }
+    }
 
-	return data.Value.VisitFields(func(node *yaml.MapNode) error {
-		for _, r := range tr.Config.Spec.Replacements {
-			yn := node.Value.YNode()
-			if yn.Kind == yaml.ScalarNode {
-				yn.Value = strings.ReplaceAll(yn.Value, r.Token, r.Value)
-			}
-		}
-		return nil
-	})
+    return nil
+  }
+
+  if rn.YNode().Kind == yaml.MappingNode {
+    return rn.VisitFields(func(rn *yaml.MapNode) error {
+      return process(rn.Value)
+    })
+  } else if rn.YNode().Kind == yaml.SequenceNode {
+    return rn.VisitElements(func(rn *yaml.RNode) error {
+      return process(rn)
+    })
+  }
+
+  return nil
 }
