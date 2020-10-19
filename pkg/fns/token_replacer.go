@@ -44,26 +44,21 @@ func (tr *TokenReplacer) Filter(rn *yaml.RNode) (*yaml.RNode, error) {
 }
 
 func (tr *TokenReplacer) replaceTokens(rn *yaml.RNode) error {
-  process := func(rn *yaml.RNode) error {
-    for _, r := range tr.Config.Spec.Replacements {
-      if rn.YNode().Kind == yaml.ScalarNode {
-        rn.YNode().Value = strings.ReplaceAll(rn.YNode().Value, r.Token, r.Value)
-      } else {
-        return tr.replaceTokens(rn)
-      }
-    }
-
-    return nil
-  }
-
-  if rn.YNode().Kind == yaml.MappingNode {
+  switch rn.YNode().Kind {
+  case yaml.MappingNode:
     return rn.VisitFields(func(rn *yaml.MapNode) error {
-      return process(rn.Value)
+      return tr.replaceTokens(rn.Value)
     })
-  } else if rn.YNode().Kind == yaml.SequenceNode {
+
+  case yaml.SequenceNode:
     return rn.VisitElements(func(rn *yaml.RNode) error {
-      return process(rn)
+      return tr.replaceTokens(rn)
     })
+
+  case yaml.ScalarNode:
+    for _, r := range tr.Config.Spec.Replacements {
+      rn.YNode().Value = strings.ReplaceAll(rn.YNode().Value, r.Token, r.Value)
+    }
   }
 
   return nil

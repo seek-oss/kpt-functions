@@ -75,7 +75,6 @@ items:
     namespace: example
     annotations:
       kpt.seek.com/token-replace: enabled
-      kpt.seek.com/token-replace-nodes:
   data:
     template.tmpl: |
       {"Region":"ap-southeast-1","Cluster":"development-a","Status":"{{ .Status }}","Alerts":[{{- range $index, $alert := .Alerts -}}{{ if ne $index 0 }},{{ end }}{"AlarmName":"{{- if eq .Labels.severity "warning" -}}[{{ .Labels.severity | str_UpperCase -}}:P3] {{ .Labels.alertname -}}",{{- else if eq .Labels.severity "critical" -}}[{{ .Labels.severity | str_UpperCase -}}:P1] {{ .Labels.alertname -}}",{{- end }}"AlarmDescription":"{{ .Annotations.message }}","Runbook":"{{- .Annotations.runbook_url -}}",{{- $length := len .Labels -}}{{- if ne $length 0 -}}{{- range $key,$val := .Labels -}}{{- if ne $key "alertname" }}"{{- $key | str_Title }}":"{{ $val -}}",{{- end -}}{{- end -}}{{- end }}"StartsAt":"{{ .StartsAt }}","EndsAt":"{{ .EndsAt }}","GeneratorURL":"{{ .GeneratorURL }}"}{{- end }}],"ExternalURL":"{{ .ExternalURL }}","Version":"{{ .Version }}"}
