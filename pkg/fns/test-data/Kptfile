@@ -1,0 +1,29 @@
+apiVersion: kpt.dev/v1alpha1
+kind: Kptfile
+metadata:
+  name: test
+openAPI:
+  definitions:
+    io.k8s.cli.setters.account-id:
+      type: string
+      x-k8s-cli:
+        setter:
+          name: account-id
+          value: 111222333444
+    io.k8s.cli.setters.region:
+      type: string
+      x-k8s-cli:
+        setter:
+          name: region
+          value: ap-southeast-1
+    io.k8s.cli.setters.domain-names:
+      type: array
+      items:
+        type: string
+      x-k8s-cli:
+        setter:
+          name: domain-names
+          listValues:
+          - "example.com"
+          - "dead.beef"
+          setBy: cluster-override
