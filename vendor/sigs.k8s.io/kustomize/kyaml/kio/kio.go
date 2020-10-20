@@ -80,6 +80,15 @@ type Pipeline struct {
 // Execute executes each step in the sequence, returning immediately after encountering
 // any error as part of the Pipeline.
 func (p Pipeline) Execute() error {
+	return p.ExecuteWithCallback(nil)
+}
+
+// PipelineExecuteCallbackFunc defines a callback function that will be called each time a step in the pipeline succeeds.
+type PipelineExecuteCallbackFunc = func(op Filter)
+
+// ExecuteWithCallback executes each step in the sequence, returning immediately after encountering
+// any error as part of the Pipeline. The callback will be called each time a step succeeds.
+func (p Pipeline) ExecuteWithCallback(callback PipelineExecuteCallbackFunc) error {
 	var result []*yaml.RNode
 
 	// read from the inputs
@@ -90,16 +99,18 @@ func (p Pipeline) Execute() error {
 		}
 		result = append(result, nodes...)
 	}
-	if len(result) == 0 {
-		// no inputs to operate on
-		return nil
-	}
 
 	// apply operations
 	var err error
 	for i := range p.Filters {
 		op := p.Filters[i]
+		if callback != nil {
+			callback(op)
+		}
 		result, err = op.Filter(result)
+		// TODO (issue 2872): This len(result) == 0 should be removed and empty result list should be
+		// handled by outputs. However currently some writer like LocalPackageReadWriter
+		// will clear the output directory and which will cause unpredictable results
 		if len(result) == 0 || err != nil {
 			return errors.Wrap(err)
 		}

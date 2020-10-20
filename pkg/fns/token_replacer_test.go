@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestTokenReplacer_Filter(t *testing.T) {
+func TestTokenReplacer_ConfigMap_Filter(t *testing.T) {
 	input := bytes.NewBufferString(`
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
@@ -48,6 +48,7 @@ functionConfig:
 		Writer:         output,
 		FunctionConfig: &config,
 	}
+
 	if err := resourceList.Read(); err != nil {
 		t.Fatal(err)
 	}
@@ -98,6 +99,102 @@ functionConfig:
 	if diff := cmp.Diff(normaliseYAML(expected), normaliseYAML(output.String())); diff != "" {
 		t.Errorf("(-want +got)\n%s", diff)
 	}
+}
+
+func TestTokenReplacer_NonConfigMap_Filter(t *testing.T) {
+  input := bytes.NewBufferString(`
+apiVersion: config.kubernetes.io/v1alpha1
+kind: ResourceList
+items:
+- apiVersion: v1
+  kind: CustomResource
+  metadata:
+    name: example
+    namespace: example
+    annotations:
+      kpt.seek.com/token-replace: enabled
+  foo:
+    bar: "$region"
+    baz:
+    - "$cluster"
+
+
+functionConfig:
+  apiVersion: kpt.seek.com/v1alpha1
+  kind: TokenReplacer
+  metadata:
+    name: token-replace
+    annotations:
+      config.kubernetes.io/function: |
+        container:
+          image: gantry-token-replace:latest
+  spec:
+    replacements:
+    - token: "$region"
+      value: ap-southeast-1
+    - token: "$cluster"
+      value: development-a
+`)
+  output := &bytes.Buffer{}
+
+  config := TokenReplaceConfig{}
+  resourceList := framework.ResourceList{
+    Reader:         input,
+    Writer:         output,
+    FunctionConfig: &config,
+  }
+
+  if err := resourceList.Read(); err != nil {
+    t.Fatal(err)
+  }
+
+  tokenReplacer := TokenReplacer{Config: &config}
+  for i := range resourceList.Items {
+    if err := resourceList.Items[i].PipeE(&tokenReplacer); err != nil {
+      t.Fatal(err)
+    }
+  }
+
+  if err := resourceList.Write(); err != nil {
+    t.Fatal(err)
+  }
+
+  expected := `
+apiVersion: config.kubernetes.io/v1alpha1
+kind: ResourceList
+items:
+- apiVersion: v1
+  kind: CustomResource
+  metadata:
+    name: example
+    namespace: example
+    annotations:
+      kpt.seek.com/token-replace: enabled
+  foo:
+    bar: "ap-southeast-1"
+    baz:
+    - "development-a"
+
+functionConfig:
+  apiVersion: kpt.seek.com/v1alpha1
+  kind: TokenReplacer
+  metadata:
+    name: token-replace
+    annotations:
+      config.kubernetes.io/function: |
+        container:
+          image: gantry-token-replace:latest
+  spec:
+    replacements:
+    - token: "$region"
+      value: ap-southeast-1
+    - token: "$cluster"
+      value: development-a
+`
+
+  if diff := cmp.Diff(normaliseYAML(expected), normaliseYAML(output.String())); diff != "" {
+    t.Errorf("(-want +got)\n%s", diff)
+  }
 }
 
 func normaliseYAML(doc string) string {

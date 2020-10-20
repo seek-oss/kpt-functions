@@ -57,6 +57,16 @@ type ElementSetter struct {
 	Value string `yaml:"value,omitempty"`
 }
 
+// isMappingNode returns whether node is a mapping node
+func (e ElementSetter) isMappingNode(node *RNode) bool {
+	return ErrorIfInvalid(node, yaml.MappingNode) == nil
+}
+
+// isMappingSetter returns is this setter intended to set a mapping node
+func (e ElementSetter) isMappingSetter() bool {
+	return e.Key != "" && e.Value != ""
+}
+
 func (e ElementSetter) Filter(rn *RNode) (*RNode, error) {
 	if err := ErrorIfInvalid(rn, SequenceNode); err != nil {
 		return nil, err
@@ -67,14 +77,20 @@ func (e ElementSetter) Filter(rn *RNode) (*RNode, error) {
 	matchingElementFound := false
 	for i := range rn.YNode().Content {
 		elem := rn.Content()[i]
+		newNode := NewRNode(elem)
 
 		// empty elements are not valid -- they at least need an associative key
-		if IsEmpty(NewRNode(elem)) {
+		if IsMissingOrNull(newNode) || IsEmptyMap(newNode) {
+			continue
+		}
+		// keep non-mapping node in the Content when we want to match a mapping.
+		if !e.isMappingNode(newNode) && e.isMappingSetter() {
+			newContent = append(newContent, elem)
 			continue
 		}
 
 		// check if this is the element we are matching
-		val, err := NewRNode(elem).Pipe(FieldMatcher{Name: e.Key, StringValue: e.Value})
+		val, err := newNode.Pipe(FieldMatcher{Name: e.Key, StringValue: e.Value})
 		if err != nil {
 			return nil, err
 		}
@@ -164,8 +180,13 @@ func MatchElement(field, value string) ElementMatcher {
 	return ElementMatcher{FieldName: field, FieldValue: value}
 }
 
+func GetElementByKey(key string) ElementMatcher {
+	return ElementMatcher{FieldName: key, MatchAnyValue: true}
+}
+
 // ElementMatcher returns the first element from a Sequence matching the
-// specified field's value.
+// specified field's value. If there's no match, and no configuration error,
+// the matcher returns nil, nil.
 type ElementMatcher struct {
 	Kind string `yaml:"kind,omitempty"`
 
@@ -179,11 +200,19 @@ type ElementMatcher struct {
 
 	// Create will create the Element if it is not found
 	Create *RNode `yaml:"create,omitempty"`
+
+	// MatchAnyValue indicates that matcher should only consider the key and ignore
+	// the actual value in the list. FieldValue must be empty when NoValue is
+	// set to true.
+	MatchAnyValue bool `yaml:"noValue,omitempty"`
 }
 
 func (e ElementMatcher) Filter(rn *RNode) (*RNode, error) {
 	if err := ErrorIfInvalid(rn, yaml.SequenceNode); err != nil {
 		return nil, err
+	}
+	if e.MatchAnyValue && e.FieldValue != "" {
+		return nil, fmt.Errorf("FieldValue must be empty when NoValue is set to true")
 	}
 
 	// SequenceNode Content is a slice of ScalarNodes.  Each ScalarNode has a
@@ -206,7 +235,18 @@ func (e ElementMatcher) Filter(rn *RNode) (*RNode, error) {
 		// cast the entry to a RNode so we can operate on it
 		elem := NewRNode(rn.Content()[i])
 
-		field, err := elem.Pipe(MatchField(e.FieldName, e.FieldValue))
+		// only check mapping node
+		if err := ErrorIfInvalid(elem, yaml.MappingNode); err != nil {
+			continue
+		}
+
+		var field *RNode
+		var err error
+		if e.MatchAnyValue {
+			field, err = elem.Pipe(Get(e.FieldName))
+		} else {
+			field, err = elem.Pipe(MatchField(e.FieldName, e.FieldValue))
+		}
 		if IsFoundOrError(field, err) {
 			return elem, err
 		}
@@ -446,6 +486,9 @@ type FieldSetter struct {
 	// value on the ScalarNode.
 	Name string `yaml:"name,omitempty"`
 
+	// Comments for the field
+	Comments Comments `yaml:"comments,omitempty"`
+
 	// Value is the value to set.
 	// Optional if Kind is set.
 	Value *RNode `yaml:"value,omitempty"`
@@ -467,6 +510,9 @@ func (s FieldSetter) Filter(rn *RNode) (*RNode, error) {
 		if err := ErrorIfInvalid(rn, yaml.ScalarNode); err != nil {
 			return rn, err
 		}
+		if IsMissingOrNull(s.Value) {
+			return rn, nil
+		}
 		// only apply the style if there is not an existing style
 		// or we want to override it
 		if !s.OverrideStyle || s.Value.YNode().Style == 0 {
@@ -478,7 +524,7 @@ func (s FieldSetter) Filter(rn *RNode) (*RNode, error) {
 	}
 
 	// Clear the field if it is empty, or explicitly null
-	if s.Value == nil || IsNull(s.Value) {
+	if s.Value == nil || s.Value.IsTaggedNull() {
 		return rn.Pipe(Clear(s.Name))
 	}
 
@@ -500,7 +546,8 @@ func (s FieldSetter) Filter(rn *RNode) (*RNode, error) {
 
 	// create the field
 	rn.YNode().Content = append(rn.YNode().Content,
-		&yaml.Node{Kind: yaml.ScalarNode, Value: s.Name},
+		&yaml.Node{Kind: yaml.ScalarNode, HeadComment: s.Comments.HeadComment,
+			LineComment: s.Comments.LineComment, FootComment: s.Comments.FootComment, Value: s.Name},
 		s.Value.YNode())
 	return s.Value, nil
 }
@@ -545,7 +592,7 @@ func IsFoundOrError(rn *RNode, err error) bool {
 
 func ErrorIfAnyInvalidAndNonNull(kind yaml.Kind, rn ...*RNode) error {
 	for i := range rn {
-		if IsEmpty(rn[i]) {
+		if IsMissingOrNull(rn[i]) {
 			continue
 		}
 		if err := ErrorIfInvalid(rn[i], kind); err != nil {
@@ -564,7 +611,7 @@ var nodeTypeIndex = map[yaml.Kind]string{
 }
 
 func ErrorIfInvalid(rn *RNode, kind yaml.Kind) error {
-	if rn == nil || rn.YNode() == nil || IsNull(rn) {
+	if IsMissingOrNull(rn) {
 		// node has no type, pass validation
 		return nil
 	}
@@ -597,7 +644,7 @@ func IsListIndex(p string) bool {
 // SplitIndexNameValue splits a lookup part Val index into the field name
 // and field value to match.
 // e.g. splits [name=nginx] into (name, nginx)
-// e.g. splits [=-jar] into ("", jar)
+// e.g. splits [=-jar] into ("", -jar)
 func SplitIndexNameValue(p string) (string, string, error) {
 	elem := strings.TrimSuffix(p, "]")
 	elem = strings.TrimPrefix(elem, "[")

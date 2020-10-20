@@ -80,6 +80,7 @@ func (r *LocalPackageReadWriter) Read() ([]*yaml.RNode, error) {
 		IncludeSubpackages:  r.IncludeSubpackages,
 		ErrorIfNonResources: r.ErrorIfNonResources,
 		SetAnnotations:      r.SetAnnotations,
+		PackageFileName:     r.PackageFileName,
 	}.Read()
 	if err != nil {
 		return nil, errors.Wrap(err)
@@ -184,8 +185,13 @@ func (r LocalPackageReader) Read() ([]*yaml.RNode, error) {
 
 	var operand ResourceNodeSlice
 	var pathRelativeTo string
-	r.PackagePath = filepath.Clean(r.PackagePath)
-	err := filepath.Walk(r.PackagePath, func(
+	var err error
+	ignoreFilesMatcher := &ignoreFilesMatcher{}
+	r.PackagePath, err = filepath.Abs(r.PackagePath)
+	if err != nil {
+		return nil, errors.Wrap(err)
+	}
+	err = filepath.Walk(r.PackagePath, func(
 		path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return errors.Wrap(err)
@@ -194,9 +200,10 @@ func (r LocalPackageReader) Read() ([]*yaml.RNode, error) {
 		// is this the user specified path?
 		if path == r.PackagePath {
 			if info.IsDir() {
-				// skip the root package directory
+				// skip the root package directory, but check for a
+				// .krmignore file first.
 				pathRelativeTo = r.PackagePath
-				return nil
+				return ignoreFilesMatcher.readIgnoreFile(path)
 			}
 
 			// user specified path is a file rather than a directory.
@@ -206,9 +213,9 @@ func (r LocalPackageReader) Read() ([]*yaml.RNode, error) {
 
 		// check if we should skip the directory or file
 		if info.IsDir() {
-			return r.ShouldSkipDir(path)
+			return r.shouldSkipDir(path, ignoreFilesMatcher)
 		}
-		if match, err := r.ShouldSkipFile(info); err != nil {
+		if match, err := r.shouldSkipFile(path, ignoreFilesMatcher); err != nil {
 			return err
 		} else if !match {
 			// skip this file
@@ -250,11 +257,16 @@ func (r *LocalPackageReader) readFile(path string, _ os.FileInfo) ([]*yaml.RNode
 	return rr.Read()
 }
 
-// ShouldSkipFile returns true if the file should be skipped
-func (r *LocalPackageReader) ShouldSkipFile(info os.FileInfo) (bool, error) {
+// shouldSkipFile returns true if the file should be skipped
+func (r *LocalPackageReader) shouldSkipFile(path string, matcher *ignoreFilesMatcher) (bool, error) {
+	// check if the file is covered by a .krmignore file.
+	if matcher.matchFile(path) {
+		return false, nil
+	}
+
 	// check if the files are in scope
 	for _, g := range r.MatchFilesGlob {
-		if match, err := filepath.Match(g, info.Name()); err != nil {
+		if match, err := filepath.Match(g, filepath.Base(path)); err != nil {
 			return false, errors.Wrap(err)
 		} else if match {
 			return true, nil
@@ -273,8 +285,12 @@ func (r *LocalPackageReader) initReaderAnnotations(path string, _ os.FileInfo) {
 	}
 }
 
-// ShouldSkipDir returns a filepath.SkipDir if the directory should be skipped
-func (r *LocalPackageReader) ShouldSkipDir(path string) error {
+// shouldSkipDir returns a filepath.SkipDir if the directory should be skipped
+func (r *LocalPackageReader) shouldSkipDir(path string, matcher *ignoreFilesMatcher) error {
+	if matcher.matchDir(path) {
+		return filepath.SkipDir
+	}
+
 	if r.PackageFileName == "" {
 		return nil
 	}
@@ -288,5 +304,5 @@ func (r *LocalPackageReader) ShouldSkipDir(path string) error {
 	if !r.IncludeSubpackages {
 		return filepath.SkipDir
 	}
-	return nil
+	return matcher.readIgnoreFile(path)
 }
