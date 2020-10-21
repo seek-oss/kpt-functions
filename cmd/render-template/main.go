@@ -2,7 +2,8 @@ package main
 
 import (
 	"fmt"
-	"os"
+  "github.com/go-errors/errors"
+  "os"
 
 	"github.com/seek-oss/kpt-functions/pkg/fns"
 	"sigs.k8s.io/kustomize/kyaml/fn/framework"
@@ -32,6 +33,11 @@ func main() {
 
 	if err := cmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error processing resources: %s\n", err)
-		os.Exit(1)
+    if e, ok := err.(*errors.Error); ok {
+      trace := e.ErrorStack()
+      fmt.Fprintf(os.Stderr, "Stack trace: %s\n", trace)
+    }
+
+    os.Exit(1)
 	}
 }

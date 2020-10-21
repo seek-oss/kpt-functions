@@ -1,42 +1,53 @@
 package fns
 
 import (
-	"bytes"
-	"fmt"
-	"path"
-	"text/template"
+  "bytes"
+  "path"
+  "strings"
+  "text/template"
 
-	"github.com/Masterminds/sprig"
+  "github.com/Masterminds/sprig"
 
-	"sigs.k8s.io/kustomize/kyaml/setters2"
-	"sigs.k8s.io/kustomize/kyaml/yaml"
+  "sigs.k8s.io/kustomize/kyaml/errors"
+  "sigs.k8s.io/kustomize/kyaml/setters2"
+  "sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
 const (
-	// Label used to enable template rendering
-	renderTemplateEnabledLabelKey = "kpt.seek.com/render-template"
+	// Annotation used to enable template rendering.
+	renderTemplateEnabledAnnotationKey = "kpt.seek.com/render-template"
 
-	// Label value used to enable template rendering
-	renderTemplateEnabledLabelValue = "true"
+	// Annotation value used to enable template rendering.
+	renderTemplateEnabledAnnotationValue = "true"
+
+	// Annotation used to specify custom template delimeters.
+	renderTemplateCustomDelimitersAnnotationKey = "kpt.seek.com/render-template/delimiters"
 )
 
-type RenderTemplateConfig struct {
-	Spec Spec `yaml:"spec,omitempty"`
-}
-
-type Spec struct {
-	Kptfiles []string `yaml:"kptfiles,omitempty"`
-}
-
+// TemplateRenderer provides a Kyaml filter that processes Kubernetes resources and
+// renders the scalar node values as Go templates. The function config for this filter
+// specifies Kptfiles whose setters are read to become the template context.
 type TemplateRenderer struct {
 	Config          *RenderTemplateConfig
 	templateContext *TemplateContext
 }
 
+// RenderTemplateConfig is the function configuration object for TemplateRenderer.
+type RenderTemplateConfig struct {
+  Spec Spec `yaml:"spec,omitempty"`
+}
+
+type Spec struct {
+  Kptfiles []string `yaml:"kptfiles,omitempty"`
+}
+
+// TemplateContext provides the template context that provides all of the
+// values that may be accessed within templated YAML values.
 type TemplateContext struct {
 	Values map[string]interface{}
 }
 
+// Filter implements Kyaml's yaml.Filter.
 func (tr *TemplateRenderer) Filter(n *yaml.RNode) (*yaml.RNode, error) {
 	if err := tr.loadTemplateContext(); err != nil {
 		return nil, err
@@ -44,26 +55,46 @@ func (tr *TemplateRenderer) Filter(n *yaml.RNode) (*yaml.RNode, error) {
 
 	meta, err := n.GetMeta()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err)
 	}
 
-	if meta.Annotations[renderTemplateEnabledLabelKey] != renderTemplateEnabledLabelValue {
+	if meta.Annotations[renderTemplateEnabledAnnotationKey] != renderTemplateEnabledAnnotationValue {
 		return n, nil
 	}
 
-	return n, tr.replaceTokens(n)
+	leftDelim, rightDelim := "{{", "}}"
+
+	if d, ok := meta.Annotations[renderTemplateCustomDelimitersAnnotationKey]; ok {
+	  delims := strings.Fields(d)
+	  if len(delims) != 2 {
+	    return nil, errors.Errorf("%s annotation must specify a left and right delimiter separated by whitespace",
+	      renderTemplateCustomDelimitersAnnotationKey)
+    }
+
+    leftDelim, rightDelim = delims[0], delims[1]
+  }
+
+	return n, tr.render(n, leftDelim, rightDelim)
 }
 
-func (tr *TemplateRenderer) replaceTokens(rn *yaml.RNode) error {
+// render recursively descends the node tree, performing template rendering on each RHS scalar value.
+func (tr *TemplateRenderer) render(rn *yaml.RNode, leftDelim, rightDelim string) error {
 	switch rn.YNode().Kind {
 	case yaml.MappingNode:
 		return rn.VisitFields(func(rn *yaml.MapNode) error {
-			return tr.replaceTokens(rn.Value)
+		  // Don't attempt to render the value of the custom delimiter annotation itself,
+		  // if present, as the Go template library will produce an error because the value
+		  // is a set of delimiters with no command inside.
+		  if rn.Key.YNode().Value == renderTemplateCustomDelimitersAnnotationKey {
+        return nil
+      }
+
+      return tr.render(rn.Value, leftDelim, rightDelim)
 		})
 
 	case yaml.SequenceNode:
 		return rn.VisitElements(func(rn *yaml.RNode) error {
-			return tr.replaceTokens(rn)
+			return tr.render(rn, leftDelim, rightDelim)
 		})
 
 	case yaml.ScalarNode:
@@ -72,23 +103,24 @@ func (tr *TemplateRenderer) replaceTokens(rn *yaml.RNode) error {
 				if v, ok := tr.templateContext.Values[k]; ok {
 					return v, nil
 				}
-				return nil, fmt.Errorf("template specifies missing key %s", k)
+				return nil, errors.Errorf("template specifies missing key %s", k)
 			},
 		}
 
 		tmpl, err := template.New("render").
 			Funcs(sprig.TxtFuncMap()).
 			Funcs(funcMap).
+		  Delims(leftDelim, rightDelim).
 			Option("missingkey=error").
 			Parse(rn.YNode().Value)
 
 		if err != nil {
-			return err
+			return errors.Wrap(err)
 		}
 
 		buf := bytes.Buffer{}
 		if err := tmpl.Execute(&buf, tr.templateContext); err != nil {
-			return err
+			return errors.Wrap(err)
 		}
 
 		rn.YNode().Value = string(buf.Bytes())
@@ -97,6 +129,8 @@ func (tr *TemplateRenderer) replaceTokens(rn *yaml.RNode) error {
 	return nil
 }
 
+// loadTemplateContext reads the Kptfiles specified in the function config and
+// parses all the setter key-value pairs into a cached Go template context object.
 func (tr *TemplateRenderer) loadTemplateContext() error {
 	if tr.templateContext != nil {
 		return nil
@@ -110,7 +144,7 @@ func (tr *TemplateRenderer) loadTemplateContext() error {
 
 		// Initialise the list object with the setter definitions from file.
 		if err := list.ListSetters(f, path.Dir(f)); err != nil {
-			return err
+			return errors.Wrap(err)
 		}
 
 		// Load each setter into the template templateContext.
@@ -125,16 +159,9 @@ func (tr *TemplateRenderer) loadTemplateContext() error {
 				value = s.Value
 			}
 
-			//tr.templateContext.Values[strcase.ToLowerCamel(s.Name)] = value
 			tr.templateContext.Values[s.Name] = value
 		}
 	}
 
 	return nil
 }
-
-//// Ideas:
-//// Annotation that allows you to specify which fields to interpolate
-//// Parse the setters from the Kptfiles
-//// Allow '{{}}' syntax and specify the setter properties as Golang template variables
-////

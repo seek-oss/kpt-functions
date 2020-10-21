@@ -1,12 +1,13 @@
 package fns
 
 import (
-	"bytes"
-	"testing"
+  "bytes"
+  "github.com/go-errors/errors"
+  "testing"
 
-	"github.com/google/go-cmp/cmp"
-	"sigs.k8s.io/kustomize/kyaml/fn/framework"
-	"sigs.k8s.io/kustomize/kyaml/yaml"
+  "github.com/google/go-cmp/cmp"
+  "sigs.k8s.io/kustomize/kyaml/fn/framework"
+  "sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
 func TestTemplateRenderer_Filter(t *testing.T) {
@@ -17,16 +18,28 @@ items:
 - apiVersion: v1
   kind: CustomResource
   metadata:
-    name: example
+    name: example1
     namespace: example
     annotations:
       kpt.seek.com/render-template: true
-  foo:
-    bar: '{{value "region"}}'
-    baz:
-    - '{{value "account-id"}}'
-    - '{{value "domain-names" | sortAlpha | join ","}}'
+  spec:
+    foo:
+      bar: '{{value "region"}}'
+      baz:
+      - '{{value "account-id"}}'
+      - '{{value "domain-names" | sortAlpha | join ","}}'
 
+- apiVersion: v1
+  kind: AnotherCustomResource
+  metadata:
+    name: example2
+    namespace: example
+    annotations:
+      kpt.seek.com/render-template: true
+      kpt.seek.com/render-template/delimiters: "[[ ]]"
+  spec:
+    foo:
+      bar: '[[value "region"]]'
 
 functionConfig:
   apiVersion: kpt.seek.com/v1alpha1
@@ -57,12 +70,12 @@ functionConfig:
 	tokenReplacer := TemplateRenderer{Config: &config}
 	for i := range resourceList.Items {
 		if err := resourceList.Items[i].PipeE(&tokenReplacer); err != nil {
-			t.Fatal(err)
+      fatalError(t, err)
 		}
 	}
 
 	if err := resourceList.Write(); err != nil {
-		t.Fatal(err)
+    fatalError(t, err)
 	}
 
 	expected := `
@@ -72,15 +85,28 @@ items:
 - apiVersion: v1
   kind: CustomResource
   metadata:
-    name: example
+    name: example1
     namespace: example
     annotations:
       kpt.seek.com/render-template: true
-  foo:
-    bar: 'ap-southeast-1'
-    baz:
-    - '111222333444'
-    - 'dead.beef,example.com'
+  spec:
+    foo:
+      bar: 'ap-southeast-1'
+      baz:
+      - '111222333444'
+      - 'dead.beef,example.com'
+
+- apiVersion: v1
+  kind: AnotherCustomResource
+  metadata:
+    name: example2
+    namespace: example
+    annotations:
+      kpt.seek.com/render-template: true
+      kpt.seek.com/render-template/delimiters: "[[ ]]"
+  spec:
+    foo:
+      bar: 'ap-southeast-1'
 
 functionConfig:
   apiVersion: kpt.seek.com/v1alpha1
@@ -103,4 +129,15 @@ functionConfig:
 
 func normaliseYAML(doc string) string {
 	return yaml.MustParse(doc).MustString()
+}
+
+func fatalError(t *testing.T, err error) {
+  t.Helper()
+
+  if e, ok := err.(*errors.Error); ok {
+    trace := e.ErrorStack()
+    t.Fatal(err, trace)
+  }
+
+  t.Fatal(err)
 }

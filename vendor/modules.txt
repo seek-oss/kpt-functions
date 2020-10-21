@@ -112,6 +112,10 @@ golang.org/x/text/width
 gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.0-20200313102051-9f266ea9e77c
 gopkg.in/yaml.v3
+# k8s.io/client-go v11.0.0+incompatible
+## explicit
+k8s.io/client-go/third_party/forked/golang/template
+k8s.io/client-go/util/jsonpath
 # sigs.k8s.io/kustomize/kyaml v0.9.2
 ## explicit
 sigs.k8s.io/kustomize/kyaml/errors
