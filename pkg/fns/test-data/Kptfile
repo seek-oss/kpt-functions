@@ -26,4 +26,33 @@ openAPI:
           listValues:
           - "example.com"
           - "dead.beef"
-          setBy: cluster-override
+    io.k8s.cli.setters.oidc-provider-id:
+      type: string
+      x-k8s-cli:
+        setter:
+          name: oidc-provider-id
+          value: ABCDEFG
+    io.k8s.cli.setters.irsa-policy:
+      type: string
+      x-k8s-cli:
+        setter:
+          name: irsa-policy
+          value: |
+            {
+              "Version": "2012-10-17",
+              "Statement": [
+                {
+                  "Effect": "Allow",
+                  "Principal": {
+                    "Federated": 'arn:aws:iam::{{value "account-id"}}:oidc-provider/oidc.eks.{{value "region"}}.amazonaws.com/id/{{value "oidc-provider-id"}}'
+                  },
+                  "Action": "sts:AssumeRoleWithWebIdentity",
+                  "Condition": {
+                    "StringEquals": {
+                      "oidc.eks.{{value "region"}}.amazonaws.com/id/{{value "oidc-provider-id"}}:sub": "system:serviceaccount:{{args 0}}:{{args 1}}"
+                    }
+                  }
+                }
+              ]
+            }
+          setBy: foo

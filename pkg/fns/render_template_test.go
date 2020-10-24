@@ -10,7 +10,7 @@ import (
   "sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
-func TestTemplateRenderer_Filter(t *testing.T) {
+func TestTemplateRenderer_Simple_Filter(t *testing.T) {
 	input := bytes.NewBufferString(`
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
@@ -43,7 +43,7 @@ items:
 
 functionConfig:
   apiVersion: kpt.seek.com/v1alpha1
-  kind: TemplateRenderer
+  kind: RenderTemplate
   metadata:
     name: render-template
     annotations:
@@ -110,7 +110,7 @@ items:
 
 functionConfig:
   apiVersion: kpt.seek.com/v1alpha1
-  kind: TemplateRenderer
+  kind: RenderTemplate
   metadata:
     name: render-template
     annotations:
@@ -125,6 +125,117 @@ functionConfig:
 	if diff := cmp.Diff(normaliseYAML(expected), normaliseYAML(output.String())); diff != "" {
 		t.Errorf("(-want +got)\n%s", diff)
 	}
+}
+
+func TestTemplateRenderer_SubTemplate_Filter(t *testing.T) {
+  input := bytes.NewBufferString(`
+apiVersion: config.kubernetes.io/v1alpha1
+kind: ResourceList
+items:
+- apiVersion: identity.aws.crossplane.io/v1beta1
+  kind: IAMRole
+  metadata:
+    name: cert-manager-role # {"$kpt-set":"role-name"}
+    namespace: cert-manager
+    annotations:
+      kpt.seek.com/render-template: true
+  spec:
+    forProvider:
+      assumeRolePolicyDocument: |-
+        {{render "irsa-policy" "cert-manager" "cert-manager"}}
+    reclaimPolicy: Delete
+    providerRef:
+      name: aws-provider
+
+functionConfig:
+  apiVersion: kpt.seek.com/v1alpha1
+  kind: RenderTemplate
+  metadata:
+    name: render-template
+    annotations:
+      config.kubernetes.io/function: |
+        container:
+          image: gantry-render-template:latest
+  spec:
+    kptfiles:
+    - test-data/Kptfile
+`)
+  output := &bytes.Buffer{}
+
+  config := RenderTemplateConfig{}
+  resourceList := framework.ResourceList{
+    Reader:         input,
+    Writer:         output,
+    FunctionConfig: &config,
+  }
+
+  if err := resourceList.Read(); err != nil {
+    t.Fatal(err)
+  }
+
+  tokenReplacer := TemplateRenderer{Config: &config}
+  for i := range resourceList.Items {
+    if err := resourceList.Items[i].PipeE(&tokenReplacer); err != nil {
+      fatalError(t, err)
+    }
+  }
+
+  if err := resourceList.Write(); err != nil {
+    fatalError(t, err)
+  }
+
+  expected := `
+apiVersion: config.kubernetes.io/v1alpha1
+kind: ResourceList
+items:
+- apiVersion: identity.aws.crossplane.io/v1beta1
+  kind: IAMRole
+  metadata:
+    name: cert-manager-role # {"$kpt-set":"role-name"}
+    namespace: cert-manager
+    annotations:
+      kpt.seek.com/render-template: true
+  spec:
+    forProvider:
+      assumeRolePolicyDocument: |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Federated": 'arn:aws:iam::111222333444:oidc-provider/oidc.eks.ap-southeast-1.amazonaws.com/id/ABCDEFG'
+              },
+              "Action": "sts:AssumeRoleWithWebIdentity",
+              "Condition": {
+                "StringEquals": {
+                  "oidc.eks.ap-southeast-1.amazonaws.com/id/ABCDEFG:sub": "system:serviceaccount:cert-manager:cert-manager"
+                }
+              }
+            }
+          ]
+        }
+    reclaimPolicy: Delete
+    providerRef:
+      name: aws-provider
+
+functionConfig:
+  apiVersion: kpt.seek.com/v1alpha1
+  kind: RenderTemplate
+  metadata:
+    name: render-template
+    annotations:
+      config.kubernetes.io/function: |
+        container:
+          image: gantry-render-template:latest
+  spec:
+    kptfiles:
+    - test-data/Kptfile
+`
+
+  if diff := cmp.Diff(normaliseYAML(expected), normaliseYAML(output.String())); diff != "" {
+    t.Errorf("(-want +got)\n%s", diff)
+  }
 }
 
 func normaliseYAML(doc string) string {
