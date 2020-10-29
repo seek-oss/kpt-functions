@@ -1,13 +1,14 @@
 package fns
 
 import (
-  "bytes"
-  "github.com/go-errors/errors"
-  "testing"
+	"bytes"
+	"testing"
 
-  "github.com/google/go-cmp/cmp"
-  "sigs.k8s.io/kustomize/kyaml/fn/framework"
-  "sigs.k8s.io/kustomize/kyaml/yaml"
+	"github.com/go-errors/errors"
+
+	"github.com/google/go-cmp/cmp"
+	"sigs.k8s.io/kustomize/kyaml/fn/framework"
+	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
 func TestTemplateRenderer_Simple_Filter(t *testing.T) {
@@ -49,7 +50,7 @@ functionConfig:
     annotations:
       config.kubernetes.io/function: |
         container:
-          image: gantry-render-template:latest
+          image: seek/kpt-render-template:latest
   spec:
     kptfiles:
     - test-data/Kptfile
@@ -70,12 +71,12 @@ functionConfig:
 	tokenReplacer := TemplateRenderer{Config: &config}
 	for i := range resourceList.Items {
 		if err := resourceList.Items[i].PipeE(&tokenReplacer); err != nil {
-      fatalError(t, err)
+			fatalError(t, err)
 		}
 	}
 
 	if err := resourceList.Write(); err != nil {
-    fatalError(t, err)
+		fatalError(t, err)
 	}
 
 	expected := `
@@ -116,7 +117,7 @@ functionConfig:
     annotations:
       config.kubernetes.io/function: |
         container:
-          image: gantry-render-template:latest
+          image: seek/kpt-render-template:latest
   spec:
     kptfiles:
     - test-data/Kptfile
@@ -128,7 +129,7 @@ functionConfig:
 }
 
 func TestTemplateRenderer_SubTemplate_Filter(t *testing.T) {
-  input := bytes.NewBufferString(`
+	input := bytes.NewBufferString(`
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -155,36 +156,36 @@ functionConfig:
     annotations:
       config.kubernetes.io/function: |
         container:
-          image: gantry-render-template:latest
+          image: seek/kpt-render-template:latest
   spec:
     kptfiles:
     - test-data/Kptfile
 `)
-  output := &bytes.Buffer{}
+	output := &bytes.Buffer{}
 
-  config := RenderTemplateConfig{}
-  resourceList := framework.ResourceList{
-    Reader:         input,
-    Writer:         output,
-    FunctionConfig: &config,
-  }
+	config := RenderTemplateConfig{}
+	resourceList := framework.ResourceList{
+		Reader:         input,
+		Writer:         output,
+		FunctionConfig: &config,
+	}
 
-  if err := resourceList.Read(); err != nil {
-    t.Fatal(err)
-  }
+	if err := resourceList.Read(); err != nil {
+		t.Fatal(err)
+	}
 
-  tokenReplacer := TemplateRenderer{Config: &config}
-  for i := range resourceList.Items {
-    if err := resourceList.Items[i].PipeE(&tokenReplacer); err != nil {
-      fatalError(t, err)
-    }
-  }
+	tokenReplacer := TemplateRenderer{Config: &config}
+	for i := range resourceList.Items {
+		if err := resourceList.Items[i].PipeE(&tokenReplacer); err != nil {
+			fatalError(t, err)
+		}
+	}
 
-  if err := resourceList.Write(); err != nil {
-    fatalError(t, err)
-  }
+	if err := resourceList.Write(); err != nil {
+		fatalError(t, err)
+	}
 
-  expected := `
+	expected := `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -227,15 +228,15 @@ functionConfig:
     annotations:
       config.kubernetes.io/function: |
         container:
-          image: gantry-render-template:latest
+          image: seek/kpt-render-template:latest
   spec:
     kptfiles:
     - test-data/Kptfile
 `
 
-  if diff := cmp.Diff(normaliseYAML(expected), normaliseYAML(output.String())); diff != "" {
-    t.Errorf("(-want +got)\n%s", diff)
-  }
+	if diff := cmp.Diff(normaliseYAML(expected), normaliseYAML(output.String())); diff != "" {
+		t.Errorf("(-want +got)\n%s", diff)
+	}
 }
 
 func normaliseYAML(doc string) string {
@@ -243,12 +244,12 @@ func normaliseYAML(doc string) string {
 }
 
 func fatalError(t *testing.T, err error) {
-  t.Helper()
+	t.Helper()
 
-  if e, ok := err.(*errors.Error); ok {
-    trace := e.ErrorStack()
-    t.Fatal(err, trace)
-  }
+	if e, ok := err.(*errors.Error); ok {
+		trace := e.ErrorStack()
+		t.Fatal(err, trace)
+	}
 
-  t.Fatal(err)
+	t.Fatal(err)
 }

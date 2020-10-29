@@ -10,7 +10,7 @@ metadata:
   annotations:
     config.kubernetes.io/function: |
       container:
-        image: gantry-render-template:latest
+        image: seek/kpt-render-template:latest
 spec:
   kptfiles:
   - Kptfile
