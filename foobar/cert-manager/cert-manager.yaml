@@ -1,0 +1,35 @@
+apiVersion: helm.fluxcd.io/v1
+kind: HelmRelease
+metadata:
+  name: cert-manager
+  namespace: cert-manager
+spec:
+  chart:
+    repository: https://charts.jetstack.io
+    name: cert-manager
+    version: v0.15.0
+  values:
+    fullnameOverride: cert-manager
+    global:
+      leaderElection:
+        namespace: cert-manager
+    installCRDs: true
+    podAnnotations:
+      ad.datadoghq.com/cert-manager.check_names: '["openmetrics"]'
+      ad.datadoghq.com/cert-manager.init_configs: "[{}]"
+      ad.datadoghq.com/cert-manager.instances: '[{"prometheus_url": "http://%%host%%:%%port%%/metrics","namespace":"cert-manager","metrics":["*"]}]'
+    serviceAccount:
+      annotations:
+        # This role allows cert-manager to use Route53 to solve DNS challenges
+        eks.amazonaws.com/role-arn: arn:aws:iam::241423265983:role/gantry-development-a-apse1-cert-manager # {"$kpt-set":"role-arn"}
+    # Workaround for https://github.com/aws/amazon-eks-pod-identity-webhook/issues/8
+    # See: https://github.com/jetstack/cert-manager/issues/2147
+    securityContext:
+      enabled: true
+      fsGroup: 1001
+    prometheus:
+      enabled: true
+      servicemonitor:
+        enabled: true
+        labels:
+          prometheus: kps-prometheus

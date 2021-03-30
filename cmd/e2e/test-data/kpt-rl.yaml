@@ -1,0 +1,38 @@
+apiVersion: config.kubernetes.io/v1alpha1
+kind: ResourceList
+items:
+- apiVersion: kpt.seek.com/v1alpha1
+  kind: E2E
+  metadata:
+    name: e2e
+  spec:
+    logLevel: info
+    baseDir: cmd/e2e/test-data
+    dependencies:
+    - name: cert-manager
+      git:
+        repo: git@github.com:SEEK-Jobs/gantry-packages.git
+        directory: cert-manager
+        ref: a63060c4c72e088115770c20414ea363976dcc2a
+    variables:
+    - name: account-id
+      value: "212336482151"
+    - name: region
+      value: ap-southeast-2
+    - name: region-short
+      value: apse2
+    - name: cluster
+      value: production-a
+    - name: environment
+      value: production
+    - name: oidc-provider-id
+      value: ABCDEFG
+    - name: internal-domain-name
+      value: hello
+    - name: external-domain-name
+      value: ap-southeast-2.production.external.seek.com
+    - name: internal-hosted-zone-id
+      value: INT001
+    - name: external-hosted-zone-id
+      value: EXT001
+

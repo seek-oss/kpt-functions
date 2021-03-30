@@ -1,41 +1,39 @@
 // Copyright 2019 The Kubernetes Authors.
 // SPDX-License-Identifier: Apache-2.0
 
-// Package framework contains a framework for writing functions in go.  The function spec
+// Package framework contains a framework for writing functions in Go.  The function specification
 // is defined at: https://github.com/kubernetes-sigs/kustomize/blob/master/cmd/config/docs/api-conventions/functions-spec.md
 //
-// Examples
+// Functions are executables that generate, modify, delete or validate Kubernetes resources.
+// They are often used used to implement abstractions ("kind: JavaSpringBoot") and
+// cross-cutting logic ("kind: SidecarInjector").
 //
-// Example function implementation using framework.Command with flag input
+// Functions may be run as standalone executables or invoked as part of an orchestrated
+// pipeline (e.g. kustomize).
 //
-//      var value string
-//      resourceList := &framework.ResourceList{}
-//      cmd := framework.Command(resourceList, func() error {
-//        for i := range resourceList.Items {
-//          // modify the items...
-//        }
-//        return nil
-//      })
-//      cmd.Flags().StringVar(&value, "value", "", "annotation value")
-//      if err := cmd.Execute(); err != nil { return err }
+// Example function implementation using framework.SimpleProcessor with a struct input
 //
-// Example function implementation using framework.ResourceList with a struct input
+//	type Spec struct {
+//		Value string `yaml:"value,omitempty"`
+//	}
+//	type Example struct {
+//		Spec Spec `yaml:"spec,omitempty"`
+//	}
 //
-//    type Spec struct {
-//      Value string `yaml:"value,omitempty"`
-//    }
-//    type Example struct {
-//      Spec Spec `yaml:"spec,omitempty"`
-//    }
-//    functionConfig := &Example{}
+//	func runFunction(rlSource *kio.ByteReadWriter) error {
+//		functionConfig := &Example{}
 //
-//    rl := framework.ResourceList{FunctionConfig: functionConfig}
-//    if err := rl.Read(); err != nil { return err	}
+//		fn := func(items []*yaml.RNode) ([]*yaml.RNode, error) {
+//			for i := range rl.Items {
+//				// modify the items...
+//			}
+//			return items, nil
+//		}
 //
-//    for i := range rl.Items {
-//      // modify the items...
-//    }
-//    if err := rl.Write(); err != nil { return err }
+//		p := framework.SimpleProcessor{Config: functionConfig, Filter: kio.FilterFunc(fn)}
+//		err := framework.Execute(p, rlSource)
+//		return errors.Wrap(err)
+//	}
 //
 // Architecture
 //
@@ -43,7 +41,7 @@
 // as output.  The function itself may be configured through a functionConfig
 // (ResourceList.FunctionConfig).
 //
-// Example Function Input:
+// Example function input:
 //
 //    kind: ResourceList
 //    items:
@@ -75,10 +73,9 @@
 // The framework takes care of serializing and deserializing the ResourceList.
 //
 // Generated ResourceList.functionConfig -- ConfigMaps
-//
 // Functions may also be specified imperatively and run using:
 //
-//   config run DIR/ --image image/containing/function:impl -- value=foo
+//   kpt fn run DIR/ --image image/containing/function:impl -- value=foo
 //
 // When run imperatively, a ConfigMap is generated for the functionConfig, and the command
 // arguments are set as ConfigMap data entries.
@@ -100,20 +97,14 @@
 //
 // Configuring Functions
 //
-// Functions may be configured through a functionConfig (i.e. a client side custom resource),
+// Functions may be configured through a functionConfig (i.e. a client-side custom resource),
 // or through flags (which the framework parses from a ConfigMap provided as input).
-//
-// When using framework.Command, any flags registered on the cobra.Command will be parsed
-// from the functionConfig input if they are defined as functionConfig.data entries.
-//
-// When using framework.ResourceList, any flags set on the ResourceList.Flags will be
-// parsed from the functionConfig input if they are defined as functionConfig.data entries.
 //
 // Functions may also access environment variables set by the caller.
 //
 // Building a container image for the function
 //
-// The go program must be built into a container to be run as a function.  The framework
+// The go program may be built into a container and run as a function.  The framework
 // can be used to generate a Dockerfile to build the function container.
 //
 //   # create the ./Dockerfile for the container

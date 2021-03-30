@@ -1,4 +1,4 @@
-FROM golang:1.14
+FROM golang:1.16
 ENV CGO_ENABLED=0
 ARG FUNCTION
 COPY . /src

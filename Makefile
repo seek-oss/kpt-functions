@@ -55,3 +55,8 @@ build-%:
 publish-%: build-%
 	@$(call banner,Publishing Kpt function seek/$*:$(VERSION))
 	docker push seek/kpt-$*:$(VERSION)
+
+.PHONY: native-build-%
+native-build-%: $(build_dir)
+	@$(call banner,Building Kpt function $*)
+	go build -v -o $(build_dir)/bin/$* cmd/$*/*.go

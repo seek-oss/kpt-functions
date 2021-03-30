@@ -1,0 +1,70 @@
+apiVersion: identity.aws.crossplane.io/v1beta1
+kind: IAMRole
+metadata:
+  name: gantry-development-a-apse1-cert-manager # {"$kpt-set":"role-name"}
+  namespace: cert-manager
+  annotations:
+    kpt.seek.com/token-replace: enabled
+spec:
+  forProvider:
+    assumeRolePolicyDocument: |-
+      {{render "irsa-policy" "cert-manager" "cert-manager"}}
+  reclaimPolicy: Delete
+  providerRef:
+    name: aws-provider
+---
+apiVersion: identity.aws.crossplane.io/v1alpha1
+kind: IAMPolicy
+metadata:
+  name: cert-manager
+  namespace: cert-manager
+  annotations:
+    kpt.seek.com/token-replace: enabled
+spec:
+  forProvider:
+    name: gantry-development-a-apse1-cert-manager # {"$kpt-set":"role-name"}
+    document: |
+      {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Action": "route53:GetChange",
+            "Resource": "arn:aws:route53:::change/*"
+          },
+          {
+            "Effect": "Allow",
+            "Action": [
+              "route53:ChangeResourceRecordSets",
+              "route53:ListResourceRecordSets"
+            ],
+            "Resource": [
+              'arn:aws:route53:::hostedzone/{{value "internal-hosted-zone-id"}}',
+              'arn:aws:route53:::hostedzone/{{value "external-hosted-zone-id"}}'
+            ]
+          },
+          {
+            "Effect": "Allow",
+            "Action": "route53:ListHostedZonesByName",
+            "Resource": "*"
+          }
+        ]
+      }
+  reclaimPolicy: Delete
+  providerRef:
+    name: aws-provider
+---
+apiVersion: identity.aws.crossplane.io/v1beta1
+kind: IAMRolePolicyAttachment
+metadata:
+  name: cert-manager
+  namespace: cert-manager
+spec:
+  forProvider:
+    policyArnRef:
+      name: cert-manager
+    roleNameRef:
+      name: gantry-development-a-apse1-cert-manager # {"$kpt-set":"role-name"}
+  reclaimPolicy: Delete
+  providerRef:
+    name: aws-provider

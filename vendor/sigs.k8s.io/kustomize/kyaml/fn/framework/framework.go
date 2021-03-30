@@ -4,30 +4,22 @@
 package framework
 
 import (
-	"fmt"
-	"io"
-	"io/ioutil"
 	"os"
-	"path/filepath"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"sigs.k8s.io/kustomize/kyaml/errors"
 	"sigs.k8s.io/kustomize/kyaml/kio"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
-// ResourceList reads the function input and writes the function output.
-//
-// Adheres to the spec: https://github.com/kubernetes-sigs/kustomize/blob/master/cmd/config/docs/api-conventions/functions-spec.md
+// ResourceList is a Kubernetes list type used as the primary data interchange format
+// in the Configuration Functions Specification:
+// https://github.com/kubernetes-sigs/kustomize/blob/master/cmd/config/docs/api-conventions/functions-spec.md
+// This framework facilitates building functions that receive and emit ResourceLists,
+// as required by the specification.
 type ResourceList struct {
-	// FunctionConfig is the ResourceList.functionConfig input value.  If FunctionConfig
-	// is set to a value such as a struct or map[string]interface{} before ResourceList.Read()
-	// is called, then the functionConfig will be parsed into that value.
-	// If it is nil, the functionConfig will be set to a map[string]interface{}
-	// before it is parsed.
+	// FunctionConfig is the ResourceList.functionConfig input value.
 	//
-	// e.g. given the function input:
+	// e.g. given the input:
 	//
 	//    kind: ResourceList
 	//    functionConfig:
@@ -35,11 +27,13 @@ type ResourceList struct {
 	//      spec:
 	//        foo: var
 	//
-	// FunctionConfig will contain the Example unmarshalled into its value.
-	FunctionConfig interface{}
+	// FunctionConfig will contain the RNodes for the Example:
+	//      kind: Example
+	//      spec:
+	//        foo: var
+	FunctionConfig *yaml.RNode `yaml:"functionConfig" json:"functionConfig"`
 
-	// Items is the ResourceList.items input and output value.  Items will be set by
-	// ResourceList.Read() and written by ResourceList.Write().
+	// Items is the ResourceList.items input and output value.
 	//
 	// e.g. given the function input:
 	//
@@ -51,176 +45,102 @@ type ResourceList struct {
 	//      ...
 	//
 	// Items will be a slice containing the Deployment and Service resources
-	Items []*yaml.RNode
+	// Mutating functions will alter this field during processing.
+	Items []*yaml.RNode `yaml:"items" json:"items"`
 
-	// Result is ResourceList.result output value.  Result will be written by
-	// ResourceList.Write()
-	Result *Result
-
-	// Flags are an optional set of flags to parse the ResourceList.functionConfig.data.
-	// If non-nil, ResourceList.Read() will set the flag value for each flag name matching
-	// a ResourceList.functionConfig.data map entry.
-	//
-	// e.g. given the function input:
-	//
-	//    kind: ResourceList
-	//    functionConfig:
-	//      data:
-	//        foo: bar
-	//        a: b
-	//
-	// The flags --a=b and --foo=bar will be set in Flags.
-	Flags *pflag.FlagSet
-
-	// Reader is used to read the function input (ResourceList).
-	// Defaults to os.Stdin.
-	Reader io.Reader
-
-	// Writer is used to write the function output (ResourceList)
-	// Defaults to os.Stdout.
-	Writer io.Writer
-
-	// rw reads function input and writes function output
-	rw *kio.ByteReadWriter
+	// Result is ResourceList.result output value.
+	// Validating functions can optionally use this field to communicate structured
+	// validation error data to downstream functions.
+	Result *Result `yaml:"results" json:"results"`
 }
 
-// Read reads the ResourceList
-func (r *ResourceList) Read() error {
-	if r.Reader == nil {
-		r.Reader = os.Stdin
+// ResourceListProcessor is implemented by configuration functions built with this framework
+// to conform to the Configuration Functions Specification:
+// https://github.com/kubernetes-sigs/kustomize/blob/master/cmd/config/docs/api-conventions/functions-spec.md
+// To invoke a processor, pass it to framework.Execute, which will also handle ResourceList IO.
+//
+// This framework provides several ready-to-use ResourceListProcessors, including
+// SimpleProcessor, VersionedAPIProcessor and TemplateProcessor.
+// You can also build your own by implementing this interface.
+type ResourceListProcessor interface {
+	Process(rl *ResourceList) error
+}
+
+// ResourceListProcessorFunc converts a compatible function to a ResourceListProcessor.
+type ResourceListProcessorFunc func(rl *ResourceList) error
+
+// Process makes ResourceListProcessorFunc implement the ResourceListProcessor interface.
+func (p ResourceListProcessorFunc) Process(rl *ResourceList) error {
+	return p(rl)
+}
+
+// Defaulter is implemented by APIs to have Default invoked.
+// The standard application is to create a type to hold your FunctionConfig data, and
+// implement Defaulter on that type. All of the framework's processors will invoke Default()
+// on your type after unmarshalling the FunctionConfig data into it.
+type Defaulter interface {
+	Default() error
+}
+
+// Validator is implemented by APIs to have Validate invoked.
+// The standard application is to create a type to hold your FunctionConfig data, and
+// implement Validator on that type. All of the framework's processors will invoke Validate()
+// on your type after unmarshalling the FunctionConfig data into it.
+type Validator interface {
+	Validate() error
+}
+
+// Execute is the entrypoint for invoking configuration functions built with this framework
+// from code. See framework/command#Build for a Cobra-based command-line equivalent.
+// Execute reads a ResourceList from the given source, passes it to a ResourceListProcessor,
+// and then writes the result to the target.
+// STDIN and STDOUT will be used if no reader or writer respectively is provided.
+func Execute(p ResourceListProcessor, rlSource *kio.ByteReadWriter) error {
+	// Prepare the resource list source
+	if rlSource == nil {
+		rlSource = &kio.ByteReadWriter{KeepReaderAnnotations: true}
 	}
-	if r.Writer == nil {
-		r.Writer = os.Stdout
+	if rlSource.Reader == nil {
+		rlSource.Reader = os.Stdin
 	}
-	r.rw = &kio.ByteReadWriter{
-		Reader:                r.Reader,
-		Writer:                r.Writer,
-		KeepReaderAnnotations: true,
+	if rlSource.Writer == nil {
+		rlSource.Writer = os.Stdout
 	}
 
+	// Read the input
+	rl := ResourceList{}
 	var err error
-	r.Items, err = r.rw.Read()
-	if err != nil {
+	if rl.Items, err = rlSource.Read(); err != nil {
 		return errors.Wrap(err)
 	}
+	rl.FunctionConfig = rlSource.FunctionConfig
 
-	// parse the functionConfig
-	return func() error {
-		if r.rw.FunctionConfig == nil {
-			// no function config exists
-			return nil
-		}
-		if r.FunctionConfig == nil {
-			// set directly from r.rw
-			r.FunctionConfig = r.rw.FunctionConfig
-		} else {
-			// unmarshal the functionConfig into the provided value
-			err := yaml.Unmarshal([]byte(r.rw.FunctionConfig.MustString()), r.FunctionConfig)
-			if err != nil {
-				return errors.Wrap(err)
-			}
-		}
+	retErr := p.Process(&rl)
 
-		// set the functionConfig values as flags so they are easy to access
-		if r.Flags == nil || !r.Flags.HasFlags() {
-			return nil
-		}
-		// flags are always set from the "data" field
-		data, err := r.rw.FunctionConfig.Pipe(yaml.Lookup("data"))
-		if err != nil || data == nil {
-			return err
-		}
-		return data.VisitFields(func(node *yaml.MapNode) error {
-			f := r.Flags.Lookup(node.Key.YNode().Value)
-			if f == nil {
-				return nil
-			}
-			return f.Value.Set(node.Value.YNode().Value)
-		})
-	}()
-}
-
-// Write writes the ResourceList
-func (r *ResourceList) Write() error {
-	// set the ResourceList.results for validating functions
-	if r.Result != nil {
-		if len(r.Result.Items) > 0 {
-			b, err := yaml.Marshal(r.Result)
-			if err != nil {
-				return errors.Wrap(err)
-			}
-			y, err := yaml.Parse(string(b))
-			if err != nil {
-				return errors.Wrap(err)
-			}
-			r.rw.Results = y
-		}
-	}
-
-	// write the results
-	return r.rw.Write(r.Items)
-}
-
-// Command returns a cobra.Command to run a function.
-//
-// The cobra.Command will use the provided ResourceList to Read() the input,
-// run the provided function, and then Write() the output.
-//
-// The returned cobra.Command will have a "gen" subcommand which can be used to generate
-// a Dockerfile to build the function into a container image
-//
-//		go run main.go gen DIR/
-func Command(resourceList *ResourceList, function Function) cobra.Command {
-	cmd := cobra.Command{}
-	AddGenerateDockerfile(&cmd)
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		err := execute(resourceList, function, cmd)
+	// Write the results
+	// Set the ResourceList.results for validating functions
+	if rl.Result != nil && len(rl.Result.Items) > 0 {
+		b, err := yaml.Marshal(rl.Result)
 		if err != nil {
-			fmt.Fprintf(cmd.ErrOrStderr(), "%v", err)
+			return errors.Wrap(err)
 		}
-		return err
+		y, err := yaml.Parse(string(b))
+		if err != nil {
+			return errors.Wrap(err)
+		}
+		rlSource.Results = y
 	}
-	cmd.SilenceErrors = true
-	cmd.SilenceUsage = true
-	return cmd
-}
-
-// AddGenerateDockerfile adds a "gen" subcommand to create a Dockerfile for building
-// the function as a container.
-func AddGenerateDockerfile(cmd *cobra.Command) {
-	gen := &cobra.Command{
-		Use:  "gen",
-		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			return ioutil.WriteFile(filepath.Join(args[0], "Dockerfile"), []byte(`FROM golang:1.13-stretch
-ENV CGO_ENABLED=0
-WORKDIR /go/src/
-COPY . .
-RUN go build -v -o /usr/local/bin/function ./
-
-FROM alpine:latest
-COPY --from=0 /usr/local/bin/function /usr/local/bin/function
-CMD ["function"]
-`), 0600)
-		},
-	}
-	cmd.AddCommand(gen)
-}
-
-func execute(rl *ResourceList, function Function, cmd *cobra.Command) error {
-	rl.Reader = cmd.InOrStdin()
-	rl.Writer = cmd.OutOrStdout()
-	rl.Flags = cmd.Flags()
-
-	if err := rl.Read(); err != nil {
-		return err
-	}
-
-	retErr := function()
-
-	if err := rl.Write(); err != nil {
+	if err := rlSource.Write(rl.Items); err != nil {
 		return err
 	}
 
 	return retErr
+}
+
+// Filter executes the given kio.Filter and replaces the ResourceList's items with the result.
+// This can be used to help implement ResourceListProcessors. See SimpleProcessor for example.
+func (rl *ResourceList) Filter(api kio.Filter) error {
+	var err error
+	rl.Items, err = api.Filter(rl.Items)
+	return errors.Wrap(err)
 }

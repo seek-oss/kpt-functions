@@ -1,0 +1,27 @@
+apiVersion: cert-manager.io/v1alpha2
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-production
+spec:
+  acme:
+    email: paved-road@seek.com.au
+    server: https://acme-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: letsencrypt-production-issuer-account-key
+    solvers:
+    - selector:
+        dnsZones:
+        - "ap-southeast-1.development.external.seek.com" # {"$kpt-set":"internal-domain-name"}
+      dns01:
+        route53:
+          region: ap-southeast-1
+          # Hosted zone for the internal domain
+          hostedZoneID: Z050344128CV6XWP1P8PX # {"$kpt-set":"internal-hosted-zone-id"}
+    - selector:
+        dnsZones:
+        - "ap-southeast-1.development.internal.seek.com" # {"$kpt-set":"external-domain-name"}
+      dns01:
+        route53:
+          region: ap-southeast-1
+          # Hosted zone for the external domain
+          hostedZoneID: Z0324493BU13HPPL9X1A # {"$kpt-set":"external-hosted-zone-id"}
