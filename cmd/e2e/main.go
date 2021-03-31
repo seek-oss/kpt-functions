@@ -1,16 +1,16 @@
 package main
 
 import (
-	"io"
 	"os"
+
+	"github.com/seek-oss/kpt-functions/pkg/filters"
 
 	kyaml "sigs.k8s.io/kustomize/kyaml/yaml"
 
+	"sigs.k8s.io/kustomize/kyaml/fn/framework"
 	"sigs.k8s.io/kustomize/kyaml/kio"
 
 	"github.com/rs/zerolog"
-
-	"sigs.k8s.io/kustomize/kyaml/fn/framework"
 )
 
 var logger = zerolog.New(os.Stderr).With().Timestamp().Logger()
@@ -20,7 +20,7 @@ func init() {
 }
 
 func main() {
-	proc := NewSyncProcessor()
+	proc := newProcessor()
 	rw := phonyByteReadWriter()
 	//rw := realByteReadWriter()
 	if err := framework.Execute(proc, rw); err != nil {
@@ -28,10 +28,29 @@ func main() {
 	}
 }
 
+func newProcessor() framework.ResourceListProcessor {
+	config := &filters.ClusterPackagesFilterConfig{
+		Data: struct {
+			LogLevel string `yaml:"logLevel,omitempty"`
+		}{
+			LogLevel: "",
+		},
+	}
+	filter := &filters.ClusterPackagesFilter{
+		Config: config,
+		Logger: logger,
+	}
+
+	return framework.SimpleProcessor{
+		Config: config,
+		Filter: filter,
+	}
+}
+
 func realByteReadWriter() *kio.ByteReadWriter {
 	return &kio.ByteReadWriter{
 		Reader: os.Stdin,
-		Writer: io.Discard,
+		Writer: os.Stdout,
 	}
 }
 
@@ -43,11 +62,11 @@ func phonyByteReadWriter() *kio.ByteReadWriter {
 
 	return &kio.ByteReadWriter{
 		Reader: f,
-		Writer: io.Discard,
+		Writer: os.Stdout,
 		FunctionConfig: kyaml.MustParse(
 			`
 data:
-  baseDir: foobar
+  baseDir: target/packages
       `,
 		),
 	}

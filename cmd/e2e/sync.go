@@ -7,6 +7,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"sigs.k8s.io/kustomize/kyaml/fieldmeta"
+
+	"github.com/GoogleContainerTools/kpt/pkg/kptfile"
+	"sigs.k8s.io/kustomize/cmd/config/ext"
+
 	"sigs.k8s.io/kustomize/cmd/config/configcobra"
 
 	"golang.org/x/sync/errgroup"
@@ -17,6 +22,19 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/fn/framework"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
+
+const (
+	setByClusterOverride = "cluster-override"
+	setByPackageOverride = "package-override"
+)
+
+func init() {
+	// Since we're using Kustomize packages to run setters against the Kpt packages,
+	// we need to tell Kustomize that we're Kpt's filename convention rather than Kustomize's.
+	ext.KRMFileName = func() string {
+		return kptfile.KptFileName
+	}
+}
 
 func NewSyncProcessor() framework.ResourceListProcessor {
 	config := &SyncConfig{}
@@ -139,27 +157,60 @@ func (f *SyncFilter) sync(ctx context.Context, clusterConfig *ClusterConfig, dep
 		return errors.WrapPrefixf(err, "error performing kpt get operation on dependency %s", pkgDir)
 	}
 
-	setVar := func(v Variable) error {
+	kpath := filepath.Join(pkgDir, ext.KRMFileName())
+	knode, err := yaml.ReadFile(kpath)
+	if err != nil {
+		return errors.WrapPrefixf(err, "could not read Kptfile %s", kpath)
+	}
+
+	hasSetter := func(name string) (bool, error) {
+		key := fieldmeta.SetterDefinitionPrefix + name
+		n, err := knode.Pipe(yaml.Lookup("openAPI", "definitions", key))
+		return n != nil, err
+	}
+
+	setVar := func(v Variable, setBy string) error {
 		setCmd := configcobra.Set("")
 		setCmd.SetOut(io.Discard)
 		setCmd.SetErr(io.Discard)
-		setCmd.SetArgs([]string{filepath.Join(pkgDir, v.Name, v.Value, "--set-by", "cluster-override")})
+		setCmd.SetArgs([]string{pkgDir, v.Name, v.Value, "--set-by", setBy})
 		if err := setCmd.Execute(); err != nil {
 			return errors.WrapPrefixf(err, "error setting variable %s on package %s", v.Name, pkgDir)
 		}
 		return nil
 	}
 
+	// Apply cluster-level variables to the package
 	for _, v := range clusterConfig.Spec.Variables {
+		ok, err := hasSetter(v.Name)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			// Setter doesn't exist for cluster-level variable for this package
+			continue
+		}
+
 		logger.Debug().Msgf("Dependency %s: setting cluster-level variable %s", pkgDir, v.Name)
-		if err := setVar(v); err != nil {
+		if err := setVar(v, setByClusterOverride); err != nil {
 			return err
 		}
 	}
 
+	// Apply package-level variables to the package
 	for _, v := range dep.Variables {
+		ok, err := hasSetter(v.Name)
+		if err != nil {
+			return err
+		}
+
+		if !ok {
+			return errors.Errorf("dependency %s specifies variable %s but no setter exists", pkgDir, v.Name)
+		}
+
 		logger.Debug().Msgf("Dependency %s: setting package-level variable %s", pkgDir, v.Name)
-		if err := setVar(v); err != nil {
+		if err := setVar(v, setByPackageOverride); err != nil {
 			return err
 		}
 	}

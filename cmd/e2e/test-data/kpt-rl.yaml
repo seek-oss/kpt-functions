@@ -2,18 +2,21 @@ apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
 - apiVersion: kpt.seek.com/v1alpha1
-  kind: E2E
+  kind: ClusterPackages
   metadata:
-    name: e2e
+    name: cluster-packages
   spec:
-    logLevel: info
-    baseDir: cmd/e2e/test-data
-    dependencies:
+    packages:
     - name: cert-manager
       git:
         repo: git@github.com:SEEK-Jobs/gantry-packages.git
         directory: cert-manager
         ref: a63060c4c72e088115770c20414ea363976dcc2a
+#    - name: istio-system
+#      git:
+#        repo: git@github.com:SEEK-Jobs/gantry-packages.git
+#        directory: istio-system
+#        ref: 76c352472cb2031521cb8b3dd77eff5a229ebd8c
     variables:
     - name: account-id
       value: "212336482151"
@@ -35,4 +38,3 @@ items:
       value: INT001
     - name: external-hosted-zone-id
       value: EXT001
-
