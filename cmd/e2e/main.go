@@ -1,7 +1,13 @@
 package main
 
 import (
+	"io/ioutil"
 	"os"
+	"strconv"
+
+	"sigs.k8s.io/kustomize/kyaml/errors"
+
+	v1 "k8s.io/api/core/v1"
 
 	"github.com/seek-oss/kpt-functions/pkg/filters"
 
@@ -13,13 +19,26 @@ import (
 	"github.com/rs/zerolog"
 )
 
+const (
+	logLevelFunctionArg  = "logLevel"
+	logLevelDefaultValue = zerolog.InfoLevel
+
+	deleteCacheFunctionArg  = "deleteCache"
+	deleteCacheDefaultValue = true
+
+	cacheDirFunctionArg = "cacheDir"
+)
+
 var logger = zerolog.New(os.Stderr).With().Timestamp().Logger()
 
-func init() {
-	zerolog.SetGlobalLevel(zerolog.DebugLevel)
-}
-
 func main() {
+	//cacheDir, err := ioutil.TempDir("", "")
+	//if err != nil {
+	//	logger.Fatal().Err(err).Msgf("Error creating temporary cache directory")
+	//}
+	//
+	//defer os.RemoveAll(cacheDir)
+
 	proc := newProcessor()
 	rw := phonyByteReadWriter()
 	//rw := realByteReadWriter()
@@ -29,22 +48,56 @@ func main() {
 }
 
 func newProcessor() framework.ResourceListProcessor {
-	config := &filters.ClusterPackagesFilterConfig{
-		Data: struct {
-			LogLevel string `yaml:"logLevel,omitempty"`
-		}{
-			LogLevel: "",
-		},
-	}
-	filter := &filters.ClusterPackagesFilter{
-		Config: config,
-		Logger: logger,
-	}
+	var functionConfig v1.ConfigMap
+	delegate := &filters.ClusterPackagesFilter{Logger: logger}
 
-	return framework.SimpleProcessor{
-		Config: config,
-		Filter: filter,
-	}
+	filter := kio.FilterFunc(func(nodes []*kyaml.RNode) ([]*kyaml.RNode, error) {
+		var err error
+		var ok bool
+
+		logLevel := logLevelDefaultValue
+		if v, ok := functionConfig.Data[logLevelFunctionArg]; ok {
+			logLevel, err = zerolog.ParseLevel(v)
+			if err != nil {
+				return nil, errors.WrapPrefixf(err, "could not parse log level")
+			}
+		}
+
+		zerolog.SetGlobalLevel(logLevel)
+
+		cleanCache := deleteCacheDefaultValue
+
+		delegate.CacheDir, ok = functionConfig.Data[cacheDirFunctionArg]
+		if ok {
+			cleanCache = false
+		} else {
+			delegate.CacheDir, err = ioutil.TempDir("", "")
+			if err != nil {
+				return nil, errors.WrapPrefixf(err, "could not create temporary cache directory")
+			}
+		}
+
+		if v, ok := functionConfig.Data[deleteCacheFunctionArg]; ok {
+			cleanCache, err = strconv.ParseBool(v)
+			if err != nil {
+				return nil, errors.WrapPrefixf(err, "could not parse deleteCache argument")
+			}
+		}
+
+		defer func() {
+			if !cleanCache {
+				return
+			}
+
+			if err := os.RemoveAll(delegate.CacheDir); err != nil {
+				logger.Fatal().Err(err).Msgf("Could not delete cache directory %s", delegate.CacheDir)
+			}
+		}()
+
+		return delegate.Filter(nodes)
+	})
+
+	return framework.SimpleProcessor{Config: &functionConfig, Filter: filter}
 }
 
 func realByteReadWriter() *kio.ByteReadWriter {
@@ -66,7 +119,7 @@ func phonyByteReadWriter() *kio.ByteReadWriter {
 		FunctionConfig: kyaml.MustParse(
 			`
 data:
-  baseDir: target/packages
+  logLevel: debug
       `,
 		),
 	}

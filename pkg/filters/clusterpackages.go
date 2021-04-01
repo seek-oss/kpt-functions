@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -16,7 +15,6 @@ import (
 	"sigs.k8s.io/kustomize/cmd/config/ext"
 	"sigs.k8s.io/kustomize/kyaml/errors"
 	"sigs.k8s.io/kustomize/kyaml/kio"
-	"sigs.k8s.io/kustomize/kyaml/kio/kioutil"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
@@ -37,8 +35,8 @@ const (
 )
 
 func init() {
-	// Since we're using Kustomize packages to run setters against the Kpt packages,
-	// we need to tell Kustomize that we're Kpt's filename convention rather than Kustomize's.
+	// Since we're using the Kustomize library to run setters against the Kpt packages, we
+	// need to tell Kustomize that we're using Kpt's filename convention rather than Kustomize's.
 	ext.KRMFileName = func() string {
 		return kptfile.KptFileName
 	}
@@ -87,31 +85,10 @@ type Variable struct {
 
 // ClusterPackagesFilter defines a kio.Filter that processes ClusterPackages custom resources.
 type ClusterPackagesFilter struct {
-	// Config specifies the filter configuration.
-	Config *ClusterPackagesFilterConfig
 	// CacheDir specifies a directory that is used by the filter to cache Git repositories.
 	CacheDir string
 	// Logger specifies the logger to be used by the filter.
 	Logger zerolog.Logger
-}
-
-type ClusterPackagesFilterConfig struct {
-	Data struct {
-		LogLevel string `yaml:"logLevel,omitempty"`
-	} `yaml:"data,omitempty"`
-}
-
-// Default implements framework.Defaulter.
-func (c *ClusterPackagesFilterConfig) Default() error {
-	if c.Data.LogLevel == "" {
-		c.Data.LogLevel = "info"
-	}
-	return nil
-}
-
-// Validate implements framework.Validator.
-func (c *ClusterPackagesFilterConfig) Validate() error {
-	return nil
 }
 
 // Filter implements kio.Filter.Filter.
@@ -137,7 +114,7 @@ func (f *ClusterPackagesFilter) Filter(input []*yaml.RNode) ([]*yaml.RNode, erro
 		}
 
 		// Fetch and process all of the resources for all of the packages defined in the ClusterPackages spec.
-		newNodes, err := f.fetchPackageResources(ctx, res)
+		newNodes, err := f.fetchClusterResources(ctx, res)
 		if err != nil {
 			return nil, err
 		}
@@ -149,87 +126,85 @@ func (f *ClusterPackagesFilter) Filter(input []*yaml.RNode) ([]*yaml.RNode, erro
 	return output, nil
 }
 
-// fetchPackageResources
-func (f *ClusterPackagesFilter) fetchPackageResources(ctx context.Context, res *ClusterPackages) ([]*yaml.RNode, error) {
-	tmpDir, err := ioutil.TempDir("", "")
-	if err != nil {
-		return nil, errors.WrapPrefixf(err, "")
-	}
-
-	defer os.RemoveAll(tmpDir)
-
+// fetchClusterResources
+func (f *ClusterPackagesFilter) fetchClusterResources(ctx context.Context, res *ClusterPackages) ([]*yaml.RNode, error) {
 	var output []*yaml.RNode
-	var repo *git.Repository
 	for _, pkg := range res.Spec.Packages {
-		checksum := sha256.Sum256([]byte(pkg.Git.Repo))
-		repoDir := filepath.Join(tmpDir, hex.EncodeToString(checksum[:]))
-		stat, err := os.Stat(repoDir)
-		cloned := false
+		nodes, err := f.fetchPackage(ctx, &pkg)
 		if err != nil {
-			if !os.IsNotExist(err) {
-				return nil, errors.WrapPrefixf(err, "error checking for directory %s", repoDir)
-			}
-		} else {
-			if stat.IsDir() {
-				cloned = true
-			} else {
-				return nil, errors.Errorf("unexpected non-directory %s exists", repoDir)
-			}
+			return nil, err
 		}
 
-		if !cloned {
-			f.Logger.Debug().Msgf("Cloning %s to %s", pkg.Git.Repo, repoDir)
-
-			auth, err := ssh.NewPublicKeysFromFile("git", "/Users/aeldridge/.ssh/id_rsa", "")
-			if err != nil {
-				return nil, errors.WrapPrefixf(err, "error retrieving Git private key information")
-			}
-
-			repo, err = git.PlainCloneContext(ctx, repoDir, false, &git.CloneOptions{
-				URL:  pkg.Git.Repo,
-				Auth: auth,
-			})
-			if err != nil {
-				return nil, errors.WrapPrefixf(err, "error cloning Git repository %s", pkg.Git.Repo)
-			}
-		} else {
-			f.Logger.Debug().Msgf("Using %s in %s", pkg.Git.Repo, tmpDir)
-
-			repo, err = git.PlainOpen(repoDir)
-			if err != nil {
-				return nil, errors.WrapPrefixf(err, "error opening Git repository %s", pkg.Git.Repo)
-			}
-		}
-
-		w, err := repo.Worktree()
-		if err != nil {
-			return nil, errors.WrapPrefixf(err, "error obtaining worktree for repository %s", pkg.Git.Repo)
-		}
-
-		if err := w.Checkout(&git.CheckoutOptions{Hash: plumbing.NewHash(pkg.Git.Ref)}); err != nil {
-			return nil, errors.WrapPrefixf(err, "error checking out ref %s for repository %s", pkg.Git.Ref, pkg.Git.Repo)
-		}
-
-		reader := kio.LocalPackageReader{
-			PackagePath:    filepath.Join(repoDir, pkg.Git.Directory),
-			MatchFilesGlob: append(kio.DefaultMatch, kptfile.KptFileName),
-		}
-
-		pkgNodes, err := reader.Read()
-		if err != nil {
-			return nil, errors.WrapPrefixf(err, "error reading resources from %s", repoDir)
-		}
-
-		for _, n := range pkgNodes {
-			if err := n.PipeE(UpdateAnnotation(kioutil.PathAnnotation, func(s string) (string, error) {
-				return filepath.Join(pkg.Name, s), nil
-			})); err != nil {
-				return nil, err
-			}
-		}
-
-		output = append(output, pkgNodes...)
+		output = append(output, nodes...)
 	}
 
 	return output, nil
+}
+
+func (f *ClusterPackagesFilter) fetchPackage(ctx context.Context, pkg *Package) ([]*yaml.RNode, error) {
+	// The repository for the specified package will be cached at ${cacheDir}/${checksum} where
+	// checksum is the sha256 sum of the repository URI.
+	checksum := sha256.Sum256([]byte(pkg.Git.Repo))
+	repoDir := filepath.Join(f.CacheDir, hex.EncodeToString(checksum[:]))
+
+	// Determine whether the repository has already been cloned and cached.
+	isCached := false
+	stat, err := os.Stat(repoDir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return nil, errors.WrapPrefixf(err, "error checking for directory %s", repoDir)
+		}
+	} else {
+		if stat.IsDir() {
+			isCached = true
+		} else {
+			return nil, errors.Errorf("unexpected non-directory %s exists", repoDir)
+		}
+	}
+
+	var repo *git.Repository
+	if !isCached {
+		f.Logger.Debug().Msgf("Cloning repository %s to %s", pkg.Git.Repo, repoDir)
+
+		auth, err := ssh.NewPublicKeysFromFile("git", "/Users/aeldridge/.ssh/id_rsa", "")
+		if err != nil {
+			return nil, errors.WrapPrefixf(err, "error retrieving Git private key information")
+		}
+
+		repo, err = git.PlainCloneContext(ctx, repoDir, false, &git.CloneOptions{
+			URL:  pkg.Git.Repo,
+			Auth: auth,
+		})
+		if err != nil {
+			return nil, errors.WrapPrefixf(err, "error cloning Git repository %s", pkg.Git.Repo)
+		}
+	} else {
+		f.Logger.Debug().Msgf("Using %s in %s", pkg.Git.Repo, f.CacheDir)
+
+		repo, err = git.PlainOpen(repoDir)
+		if err != nil {
+			return nil, errors.WrapPrefixf(err, "error opening Git repository %s", pkg.Git.Repo)
+		}
+	}
+
+	w, err := repo.Worktree()
+	if err != nil {
+		return nil, errors.WrapPrefixf(err, "error obtaining worktree for repository %s", pkg.Git.Repo)
+	}
+
+	if err := w.Checkout(&git.CheckoutOptions{Hash: plumbing.NewHash(pkg.Git.Ref)}); err != nil {
+		return nil, errors.WrapPrefixf(err, "error checking out ref %s for repository %s", pkg.Git.Ref, pkg.Git.Repo)
+	}
+
+	reader := kio.LocalPackageReader{
+		PackagePath:    filepath.Join(repoDir, pkg.Git.Directory),
+		MatchFilesGlob: append(kio.DefaultMatch, kptfile.KptFileName),
+	}
+
+	nodes, err := reader.Read()
+	if err != nil {
+		return nil, errors.WrapPrefixf(err, "error reading resources from %s", repoDir)
+	}
+
+	return nodes, nil
 }

@@ -81,7 +81,7 @@ package filters
 //			return nil, errors.WrapPrefixf(err, "could not unmarshal input")
 //		}
 //
-//		newNodes, err := f.fetchPackageResources(ctx, res)
+//		newNodes, err := f.fetchClusterResources(ctx, res)
 //		if err != nil {
 //			return nil, err
 //		}
@@ -92,7 +92,7 @@ package filters
 //	return output, nil
 //}
 //
-//func (f *ClusterPackagesFilter) fetchPackageResources(ctx context.Context, res *ClusterPackages) ([]*yaml.RNode, error) {
+//func (f *ClusterPackagesFilter) fetchClusterResources(ctx context.Context, res *ClusterPackages) ([]*yaml.RNode, error) {
 //	tmpDir, err := ioutil.TempDir("", "")
 //	if err != nil {
 //		return nil, errors.WrapPrefixf(err, "")
@@ -177,7 +177,7 @@ package filters
 //}
 
 //
-//func (f *ClusterPackagesFilter) fetchPackageResources(ctx context.Context, clusterConfig *ClusterPackages) error {
+//func (f *ClusterPackagesFilter) fetchClusterResources(ctx context.Context, clusterConfig *ClusterPackages) error {
 //	group, _ := errgroup.WithContext(ctx)
 //	for _, dep := range clusterConfig.Spec.Packages {
 //		group.Go(func() error {

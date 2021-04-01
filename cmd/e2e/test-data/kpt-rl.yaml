@@ -6,6 +6,7 @@ items:
   metadata:
     name: cluster-packages
   spec:
+    baseDir: target/packages
     packages:
     - name: cert-manager
       git:
