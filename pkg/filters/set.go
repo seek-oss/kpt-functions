@@ -78,14 +78,7 @@ func (f *SetPackageFilter) setResource(openAPI *yaml.RNode) kio.Filter {
 		panic(err)
 	}
 
-	//return setters2.SetAll(&setters2.Set{
-	//	Name:          f.Name,
-	//	SettersSchema: schema,
-	//})
-
 	return kio.FilterAll(&setters2.Set{
-		//Name: fieldmeta.SetterDefinitionPrefix + f.Name,
-		//SetAll:        false,
 		Name:          f.Name,
 		SettersSchema: schema,
 	})

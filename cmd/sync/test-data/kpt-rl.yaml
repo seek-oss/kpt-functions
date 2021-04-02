@@ -12,7 +12,7 @@ items:
       git:
         repo: git@github.com:SEEK-Jobs/gantry-packages.git
         directory: test
-        ref: b5641f5a7dac5baa6598baa165d93608aeac24ff
+        ref: d85052d99d1577e3ed75d8b9f4f0b4970f1acb25
     variables:
     - name: account-id
       value: 00000
@@ -34,3 +34,22 @@ items:
       value: INT001
     - name: external-hosted-zone-id
       value: EXT001
+    - name: irsa-policy
+      value: |
+        {
+          "Version": "2012-10-17",
+          "Statement": [
+            {
+              "Effect": "Allow",
+              "Principal": {
+                "Federated": 'arn:aws:iam::{{value "account-id"}}:oidc-provider/oidc.eks.{{value "region"}}.amazonaws.com/id/{{value "oidc-provider-id"}}'
+              },
+              "Action": "sts:AssumeRoleWithWebIdentity",
+              "Condition": {
+                "StringEquals": {
+                  "oidc.eks.{{value "region"}}.amazonaws.com/id/{{value "oidc-provider-id"}}:sub": "system:serviceaccount:{{args 0}}:{{args 1}}"
+                }
+              }
+            }
+          ]
+        }

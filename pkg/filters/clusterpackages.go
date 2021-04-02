@@ -126,9 +126,9 @@ func (f *ClusterPackagesFilter) fetchClusterResources(ctx context.Context, res *
 			return nil, err
 		}
 
-		var setFilters []kio.Filter
+		var pkgFilters []kio.Filter
 		for _, v := range res.Spec.Variables {
-			setFilters = append(setFilters, &SetPackageFilter{
+			pkgFilters = append(pkgFilters, &SetPackageFilter{
 				Name:       v.Name,
 				Value:      v.Value,
 				ListValues: nil,
@@ -137,7 +137,7 @@ func (f *ClusterPackagesFilter) fetchClusterResources(ctx context.Context, res *
 		}
 
 		for _, v := range pkg.Variables {
-			setFilters = append(setFilters, &SetPackageFilter{
+			pkgFilters = append(pkgFilters, &SetPackageFilter{
 				Name:       v.Name,
 				Value:      v.Value,
 				ListValues: nil,
@@ -145,7 +145,9 @@ func (f *ClusterPackagesFilter) fetchClusterResources(ctx context.Context, res *
 			})
 		}
 
-		for _, f := range setFilters {
+		pkgFilters = append(pkgFilters, &TemplateFilter{})
+
+		for _, f := range pkgFilters {
 			nodes, err = f.Filter(nodes)
 			if err != nil {
 				return nil, err
