@@ -12,7 +12,6 @@ import (
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/rs/zerolog"
-	"sigs.k8s.io/kustomize/cmd/config/ext"
 	"sigs.k8s.io/kustomize/kyaml/errors"
 	"sigs.k8s.io/kustomize/kyaml/kio"
 	"sigs.k8s.io/kustomize/kyaml/yaml"
@@ -33,14 +32,6 @@ const (
 	// SetByPackageOverride defines the set-by value used when Kpt packages setters are set by package-level variables.
 	SetByPackageOverride = "package-override"
 )
-
-func init() {
-	// Since we're using the Kustomize library to run setters against the Kpt packages, we
-	// need to tell Kustomize that we're using Kpt's filename convention rather than Kustomize's.
-	ext.KRMFileName = func() string {
-		return kptfile.KptFileName
-	}
-}
 
 // ClusterPackages defines the "client-side CRD" that is managed by the ClusterPackagesFilter. When
 // the ClusterPackagesFilter sees a resource that matches this type, it transforms it into a stream
@@ -133,6 +124,32 @@ func (f *ClusterPackagesFilter) fetchClusterResources(ctx context.Context, res *
 		nodes, err := f.fetchPackage(ctx, &pkg)
 		if err != nil {
 			return nil, err
+		}
+
+		var setFilters []kio.Filter
+		for _, v := range res.Spec.Variables {
+			setFilters = append(setFilters, &SetPackageFilter{
+				Name:       v.Name,
+				Value:      v.Value,
+				ListValues: nil,
+				SetBy:      SetByClusterOverride,
+			})
+		}
+
+		for _, v := range pkg.Variables {
+			setFilters = append(setFilters, &SetPackageFilter{
+				Name:       v.Name,
+				Value:      v.Value,
+				ListValues: nil,
+				SetBy:      SetByPackageOverride,
+			})
+		}
+
+		for _, f := range setFilters {
+			nodes, err = f.Filter(nodes)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		output = append(output, nodes...)

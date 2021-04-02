@@ -32,13 +32,6 @@ const (
 var logger = zerolog.New(os.Stderr).With().Timestamp().Logger()
 
 func main() {
-	//cacheDir, err := ioutil.TempDir("", "")
-	//if err != nil {
-	//	logger.Fatal().Err(err).Msgf("Error creating temporary cache directory")
-	//}
-	//
-	//defer os.RemoveAll(cacheDir)
-
 	proc := newProcessor()
 	rw := phonyByteReadWriter()
 	//rw := realByteReadWriter()

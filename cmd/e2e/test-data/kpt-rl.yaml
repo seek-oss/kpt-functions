@@ -11,20 +11,15 @@ items:
     - name: cert-manager
       git:
         repo: git@github.com:SEEK-Jobs/gantry-packages.git
-        directory: cert-manager
-        ref: a63060c4c72e088115770c20414ea363976dcc2a
-#    - name: istio-system
-#      git:
-#        repo: git@github.com:SEEK-Jobs/gantry-packages.git
-#        directory: istio-system
-#        ref: 76c352472cb2031521cb8b3dd77eff5a229ebd8c
+        directory: test
+        ref: b5641f5a7dac5baa6598baa165d93608aeac24ff
     variables:
     - name: account-id
-      value: "212336482151"
+      value: 00000
     - name: region
-      value: ap-southeast-2
+      value: ap-southeast-3
     - name: region-short
-      value: apse2
+      value: apse3
     - name: cluster
       value: production-a
     - name: environment
@@ -32,9 +27,9 @@ items:
     - name: oidc-provider-id
       value: ABCDEFG
     - name: internal-domain-name
-      value: hello
+      value: ap-southeast-3.production.internal.seek.com
     - name: external-domain-name
-      value: ap-southeast-2.production.external.seek.com
+      value: ap-southeast-3.production.external.seek.com
     - name: internal-hosted-zone-id
       value: INT001
     - name: external-hosted-zone-id
