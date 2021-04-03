@@ -2,6 +2,7 @@ package filters
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	gotemplate "text/template"
 
@@ -17,14 +18,8 @@ import (
 )
 
 const (
-	// Annotation used to enable template rendering.
-	renderTemplateEnabledAnnotationKey = "kpt.seek.com/render-template"
-
-	// Annotation value used to enable template rendering.
-	renderTemplateEnabledAnnotationValue = "enabled"
-
-	// Annotation used to specify custom template delimeters.
-	renderTemplateCustomDelimitersAnnotationKey = "kpt.seek.com/render-template/delimiters"
+	templateEnabledKey   = "$kpt-template"
+	templateEnabledValue = "true"
 )
 
 // TemplateFilter provides a Kyaml filter that processes Kubernetes resources and  renders the scalar node values
@@ -71,35 +66,11 @@ func (f *TemplateFilter) Filter(nodes []*yaml.RNode) ([]*yaml.RNode, error) {
 
 // process processes the templated fields in the specified resource node.
 func (f *TemplateFilter) process(resource *yaml.RNode, template *gotemplate.Template, templateContext *TemplateContext) error {
-	meta, err := resource.GetMeta()
-	if err != nil {
-		return errors.Wrap(err)
-	}
-
-	if meta.Annotations[renderTemplateEnabledAnnotationKey] != renderTemplateEnabledAnnotationValue {
-		return nil
-	}
-
-	leftDelim, rightDelim := "{{", "}}"
-
-	if d, ok := meta.Annotations[renderTemplateCustomDelimitersAnnotationKey]; ok {
-		delims := strings.Fields(d)
-		if len(delims) != 2 {
-			return errors.Errorf(
-				"%s annotation must specify a left and right delimiter separated by whitespace",
-				renderTemplateCustomDelimitersAnnotationKey)
-		}
-
-		leftDelim, rightDelim = delims[0], delims[1]
-	}
-
 	exec := func(v string) (string, error) {
 		tmpl, err := template.Clone()
 		if err != nil {
 			return "", errors.Wrap(err)
 		}
-
-		tmpl.Delims(leftDelim, rightDelim)
 
 		if _, err := tmpl.Parse(v); err != nil {
 			return "", errors.Wrap(err)
@@ -113,38 +84,34 @@ func (f *TemplateFilter) process(resource *yaml.RNode, template *gotemplate.Temp
 		return string(buf.Bytes()), nil
 	}
 
-	return f.render(resource, exec)
+	return f.render(resource, exec, false)
 }
 
 type executeTemplate func(string) (string, error)
 
 // render recursively descends the node tree, performing template rendering on each RHS scalar value.
-func (f *TemplateFilter) render(rn *yaml.RNode, exec executeTemplate) error {
+func (f *TemplateFilter) render(rn *yaml.RNode, exec executeTemplate, templatingEnabled bool) error {
+	templatingEnabled = templatingEnabled || f.hasEnabledTemplating(rn)
 	switch rn.YNode().Kind {
 	case yaml.MappingNode:
 		return rn.VisitFields(func(rn *yaml.MapNode) error {
-			// Don't attempt to render the value of the custom delimiter annotation itself,
-			// if present, as the Go template library will produce an error because the value
-			// is a set of delimiters with no command inside.
-			if rn.Key.YNode().Value == renderTemplateCustomDelimitersAnnotationKey {
-				return nil
-			}
-
-			return f.render(rn.Value, exec)
+			return f.render(rn.Value, exec, templatingEnabled || f.hasEnabledTemplating(rn.Key))
 		})
 
 	case yaml.SequenceNode:
 		return rn.VisitElements(func(rn *yaml.RNode) error {
-			return f.render(rn, exec)
+			return f.render(rn, exec, templatingEnabled)
 		})
 
 	case yaml.ScalarNode:
-		res, err := exec(rn.YNode().Value)
-		if err != nil {
-			return err
-		}
+		if templatingEnabled {
+			res, err := exec(rn.YNode().Value)
+			if err != nil {
+				return err
+			}
 
-		rn.YNode().Value = res
+			rn.YNode().Value = res
+		}
 	}
 
 	return nil
@@ -188,7 +155,11 @@ func (f *TemplateFilter) load(kptfile *yaml.RNode) (*gotemplate.Template, *Templ
 			return args[i]
 		}
 
-		newTmpl.Funcs(gotemplate.FuncMap{"value": valueFn, "render": renderFn, "args": argsFn})
+		nargsFn := func() int {
+			return len(args)
+		}
+
+		newTmpl.Funcs(gotemplate.FuncMap{"value": valueFn, "render": renderFn, "args": argsFn, "nargs": nargsFn})
 
 		if _, err := newTmpl.Parse(text); err != nil {
 			return "", errors.Wrap(err)
@@ -261,7 +232,6 @@ func (f *TemplateFilter) listSetters(kptfile *yaml.RNode) ([]setters2.SetterDefi
 			return errors.Errorf("missing x-k8s-cli.setter for %s", key)
 		}
 
-		// unmarshal the yaml for the setter extension into the definition struct
 		b, err := setterNode.String()
 		if err != nil {
 			return err
@@ -277,4 +247,27 @@ func (f *TemplateFilter) listSetters(kptfile *yaml.RNode) ([]setters2.SetterDefi
 	}
 
 	return setters, nil
+}
+
+// hasEnabledTemplating returns whether the specified YAML node has enabled templating via a
+// {"$kpt-template":"true"} annotation.
+func (f *TemplateFilter) hasEnabledTemplating(n *yaml.RNode) bool {
+	comments := []string{n.YNode().LineComment, n.YNode().HeadComment}
+	for _, c := range comments {
+		if c == "" {
+			continue
+		}
+
+		m := map[string]string{}
+		err := json.Unmarshal([]byte(strings.TrimLeft(c, "#")), &m)
+		if err != nil {
+			return false
+		}
+
+		if m[templateEnabledKey] == templateEnabledValue {
+			return true
+		}
+	}
+
+	return false
 }

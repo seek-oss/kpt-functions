@@ -101,7 +101,7 @@ func realByteReadWriter() *kio.ByteReadWriter {
 }
 
 func phonyByteReadWriter() *kio.ByteReadWriter {
-	f, err := os.Open("cmd/e2e/test-data/kpt-rl.yaml")
+	f, err := os.Open("cmd/sync/test-data/kpt-rl.yaml")
 	if err != nil {
 		logger.Fatal().Err(err).Msgf("Error reading input file")
 	}

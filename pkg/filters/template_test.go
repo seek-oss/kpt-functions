@@ -53,61 +53,18 @@ items:
             listValues:
             - "example.com"
             - "dead.beef"
-      io.k8s.cli.setters.oidc-provider-id:
-        type: string
-        x-k8s-cli:
-          setter:
-            name: oidc-provider-id
-            value: ABCDEFG
-      io.k8s.cli.setters.irsa-policy:
-        type: string
-        x-k8s-cli:
-          setter:
-            name: irsa-policy
-            value: |
-              {
-                "Version": "2012-10-17",
-                "Statement": [
-                  {
-                    "Effect": "Allow",
-                    "Principal": {
-                      "Federated": 'arn:aws:iam::{{value "account-id"}}:oidc-provider/oidc.eks.{{value "region"}}.amazonaws.com/id/{{value "oidc-provider-id"}}'
-                    },
-                    "Action": "sts:AssumeRoleWithWebIdentity",
-                    "Condition": {
-                      "StringEquals": {
-                        "oidc.eks.{{value "region"}}.amazonaws.com/id/{{value "oidc-provider-id"}}:sub": "system:serviceaccount:{{args 0}}:{{args 1}}"
-                      }
-                    }
-                  }
-                ]
-              }
 
 - apiVersion: v1
   kind: CustomResource
   metadata:
     name: example1
     namespace: example
-    annotations:
-      kpt.seek.com/render-template: true
-  spec:
+  spec: # {"$kpt-template":"true"}
     foo:
       bar: '{{value "region"}}'
       baz:
       - '{{value "account-id"}}'
       - '{{value "domain-names" | sortAlpha | join ","}}'
-
-- apiVersion: v1
-  kind: AnotherCustomResource
-  metadata:
-    name: example2
-    namespace: example
-    annotations:
-      kpt.seek.com/render-template: true
-      kpt.seek.com/render-template/delimiters: "[[ ]]"
-  spec:
-    foo:
-      bar: '[[value "region"]]'
 `)
 
 	output := &bytes.Buffer{}
@@ -153,61 +110,18 @@ items:
             listValues:
             - "example.com"
             - "dead.beef"
-      io.k8s.cli.setters.oidc-provider-id:
-        type: string
-        x-k8s-cli:
-          setter:
-            name: oidc-provider-id
-            value: ABCDEFG
-      io.k8s.cli.setters.irsa-policy:
-        type: string
-        x-k8s-cli:
-          setter:
-            name: irsa-policy
-            value: |
-              {
-                "Version": "2012-10-17",
-                "Statement": [
-                  {
-                    "Effect": "Allow",
-                    "Principal": {
-                      "Federated": 'arn:aws:iam::{{value "account-id"}}:oidc-provider/oidc.eks.{{value "region"}}.amazonaws.com/id/{{value "oidc-provider-id"}}'
-                    },
-                    "Action": "sts:AssumeRoleWithWebIdentity",
-                    "Condition": {
-                      "StringEquals": {
-                        "oidc.eks.{{value "region"}}.amazonaws.com/id/{{value "oidc-provider-id"}}:sub": "system:serviceaccount:{{args 0}}:{{args 1}}"
-                      }
-                    }
-                  }
-                ]
-              }
 
 - apiVersion: v1
   kind: CustomResource
   metadata:
     name: example1
     namespace: example
-    annotations:
-      kpt.seek.com/render-template: true
-  spec:
+  spec: # {"$kpt-template":"true"}
     foo:
       bar: 'ap-southeast-1'
       baz:
       - '111222333444'
       - 'dead.beef,example.com'
-
-- apiVersion: v1
-  kind: AnotherCustomResource
-  metadata:
-    name: example2
-    namespace: example
-    annotations:
-      kpt.seek.com/render-template: true
-      kpt.seek.com/render-template/delimiters: "[[ ]]"
-  spec:
-    foo:
-      bar: 'ap-southeast-1'
 `
 
 	if diff := cmp.Diff(normaliseYAML(expected), normaliseYAML(output.String())); diff != "" {
@@ -259,7 +173,7 @@ items:
         x-k8s-cli:
           setter:
             name: irsa-policy
-            value: |
+            value: |-
               {
                 "Version": "2012-10-17",
                 "Statement": [
@@ -271,7 +185,7 @@ items:
                     "Action": "sts:AssumeRoleWithWebIdentity",
                     "Condition": {
                       "StringEquals": {
-                        "oidc.eks.{{value "region"}}.amazonaws.com/id/{{value "oidc-provider-id"}}:sub": "system:serviceaccount:{{args 0}}:{{args 1}}"
+                        "oidc.eks.{{value "region"}}.amazonaws.com/id/{{value "oidc-provider-id"}}:sub": "system:serviceaccount:{{args 0}}:{{if eq nargs 1}}{{args 0}}{{else}}{{args 1}}{{end}}"
                       }
                     }
                   }
@@ -283,12 +197,11 @@ items:
   metadata:
     name: cert-manager-role # {"$kpt-set":"role-name"}
     namespace: cert-manager
-    annotations:
-      kpt.seek.com/render-template: true
   spec:
     forProvider:
-      assumeRolePolicyDocument: |-
-        {{render "irsa-policy" "cert-manager" "cert-manager"}}
+      # {"$kpt-template":"true"}
+      assumeRolePolicyDocument: |
+        {{render "irsa-policy" "cert-manager"}}
     reclaimPolicy: Delete
     providerRef:
       name: aws-provider
@@ -348,7 +261,7 @@ items:
         x-k8s-cli:
           setter:
             name: irsa-policy
-            value: |
+            value: |-
               {
                 "Version": "2012-10-17",
                 "Statement": [
@@ -360,7 +273,7 @@ items:
                     "Action": "sts:AssumeRoleWithWebIdentity",
                     "Condition": {
                       "StringEquals": {
-                        "oidc.eks.{{value "region"}}.amazonaws.com/id/{{value "oidc-provider-id"}}:sub": "system:serviceaccount:{{args 0}}:{{args 1}}"
+                        "oidc.eks.{{value "region"}}.amazonaws.com/id/{{value "oidc-provider-id"}}:sub": "system:serviceaccount:{{args 0}}:{{if eq nargs 1}}{{args 0}}{{else}}{{args 1}}{{end}}"
                       }
                     }
                   }
@@ -372,10 +285,9 @@ items:
   metadata:
     name: cert-manager-role # {"$kpt-set":"role-name"}
     namespace: cert-manager
-    annotations:
-      kpt.seek.com/render-template: true
   spec:
     forProvider:
+      # {"$kpt-template":"true"}
       assumeRolePolicyDocument: |
         {
           "Version": "2012-10-17",

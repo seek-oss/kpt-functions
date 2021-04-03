@@ -8,11 +8,11 @@ items:
   spec:
     baseDir: target/packages
     packages:
-    - name: cert-manager
+    - name: test
       git:
         repo: git@github.com:SEEK-Jobs/gantry-packages.git
         directory: test
-        ref: d85052d99d1577e3ed75d8b9f4f0b4970f1acb25
+        ref: 5fc702d3dd0f46509283cb0bcc4a3327d1ee8b1d
     variables:
     - name: account-id
       value: 00000
@@ -35,7 +35,7 @@ items:
     - name: external-hosted-zone-id
       value: EXT001
     - name: irsa-policy
-      value: |
+      value: |-
         {
           "Version": "2012-10-17",
           "Statement": [
@@ -47,7 +47,7 @@ items:
               "Action": "sts:AssumeRoleWithWebIdentity",
               "Condition": {
                 "StringEquals": {
-                  "oidc.eks.{{value "region"}}.amazonaws.com/id/{{value "oidc-provider-id"}}:sub": "system:serviceaccount:{{args 0}}:{{args 1}}"
+                  "oidc.eks.{{value "region"}}.amazonaws.com/id/{{value "oidc-provider-id"}}:sub": "system:serviceaccount:{{args 0}}:{{if eq nargs 1}}{{args 0}}{{else}}{{args 1}}{{end}}"
                 }
               }
             }
