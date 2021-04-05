@@ -43,12 +43,12 @@ func (f *SetPackageFilter) Filter(nodes []*yaml.RNode) ([]*yaml.RNode, error) {
 		return nil, err
 	}
 
-	kptfileNodes, err = f.setOpenAPI().Filter(kptfileNodes)
+	kptfileNodes, err = f.kptfileSetterFilter().Filter(kptfileNodes)
 	if err != nil {
 		return nil, err
 	}
 
-	notKptfileNodes, err = f.setResource(kptfileNodes[0]).Filter(notKptfileNodes)
+	notKptfileNodes, err = f.resourceSetterFilter(kptfileNodes[0]).Filter(notKptfileNodes)
 	if err != nil {
 		return nil, err
 	}
@@ -56,7 +56,8 @@ func (f *SetPackageFilter) Filter(nodes []*yaml.RNode) ([]*yaml.RNode, error) {
 	return append(kptfileNodes, notKptfileNodes...), nil
 }
 
-func (f *SetPackageFilter) setOpenAPI() kio.Filter {
+// kptfileSetterFilter returns a kio.Filter that invokes a setter on Kptfile resource nodes.
+func (f *SetPackageFilter) kptfileSetterFilter() kio.Filter {
 	return kio.FilterAll(yaml.FilterFunc(func(node *yaml.RNode) (*yaml.RNode, error) {
 		if !hasKptfileSetter(node, f.Name) {
 			return node, nil
@@ -72,8 +73,9 @@ func (f *SetPackageFilter) setOpenAPI() kio.Filter {
 	}))
 }
 
-func (f *SetPackageFilter) setResource(openAPI *yaml.RNode) kio.Filter {
-	schema, err := schemaUsingField(openAPI)
+// resourceSetterFilter returns a kio.Filter that invokes a setter on regular (i.e., non-Kptfile) resource nodes.
+func (f *SetPackageFilter) resourceSetterFilter(kptfile *yaml.RNode) kio.Filter {
+	schema, err := openAPISchema(kptfile)
 	if err != nil {
 		panic(err)
 	}
@@ -84,24 +86,22 @@ func (f *SetPackageFilter) setResource(openAPI *yaml.RNode) kio.Filter {
 	})
 }
 
-func schemaUsingField(object *yaml.RNode) (*spec.Schema, error) {
-	// get the field containing the openAPI
-	m := object.Field(openapi.SupplementaryOpenAPIFieldName)
+// openAPISchema returns the spec.Schema for the specified Kptfile resource node.
+func openAPISchema(kptfile *yaml.RNode) (*spec.Schema, error) {
+	m := kptfile.Field(openapi.SupplementaryOpenAPIFieldName)
 	if m.IsNilOrEmpty() {
 		// doesn't contain openAPI definitions
 		return nil, nil
 	}
-	object = m.Value
+	kptfile = m.Value
 
-	oAPI, err := object.String()
+	oa, err := kptfile.String()
 	if err != nil {
 		return nil, err
 	}
 
-	// convert the yaml openAPI to a JSON string by unmarshalling it to an
-	// interface{} and the marshalling it to a string
 	var o interface{}
-	err = yaml.Unmarshal([]byte(oAPI), &o)
+	err = yaml.Unmarshal([]byte(oa), &o)
 	if err != nil {
 		return nil, err
 	}

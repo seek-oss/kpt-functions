@@ -152,7 +152,7 @@ func (f *ClusterPackagesFilter) fetchClusterResources(ctx context.Context, res *
 
 		pkgFilters = append(pkgFilters, &UpdatePathFilter{
 			Func: func(path string) (string, error) {
-				return filepath.Join(res.Spec.BaseDir, path), nil
+				return filepath.Join(res.Spec.BaseDir, pkg.Name, path), nil
 			},
 		})
 
@@ -207,7 +207,7 @@ func (f *ClusterPackagesFilter) fetchPackage(ctx context.Context, pkg *Package) 
 			return nil, errors.WrapPrefixf(err, "error cloning Git repository %s", pkg.Git.Repo)
 		}
 	} else {
-		f.Logger.Debug().Msgf("Using %s in %s", pkg.Git.Repo, f.CacheDir)
+		f.Logger.Debug().Msgf("Using %s in %s", pkg.Git.Repo, repoDir)
 
 		repo, err = git.PlainOpen(repoDir)
 		if err != nil {

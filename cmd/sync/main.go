@@ -138,9 +138,9 @@ func newProcessor() framework.ResourceListProcessor {
 // containing a framework.ResourceList - this can be useful for debugging locally.
 func readWriter() (*kio.ByteReadWriter, error) {
 	r := os.Stdin
-	if len(os.Args) > 0 {
+	if len(os.Args) > 1 {
 		var err error
-		r, err = os.Open(os.Args[0])
+		r, err = os.Open(os.Args[1])
 		if err != nil {
 			return nil, errors.WrapPrefixf(err, "could not read file argument")
 		}

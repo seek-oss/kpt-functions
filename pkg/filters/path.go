@@ -6,6 +6,8 @@ import (
 	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
+// UpdatePathFilter is a kio.Filter that performs a transformation on the `config.kubernetes.io/path`
+// annotation of resource nodes. This can be used to change the path that resources will be written to.
 type UpdatePathFilter struct {
 	// Func is the transformation function applied to the existing path annotation.
 	Func func(string) (string, error)
