@@ -7,4 +7,5 @@ RUN go build -v -o /usr/local/bin/fn cmd/${FUNCTION}/*.go
 
 FROM alpine:latest
 COPY --from=0 /usr/local/bin/fn /usr/local/bin/fn
+COPY ssh/known_hosts /.ssh/known_hosts
 CMD ["/usr/local/bin/fn"]

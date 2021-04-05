@@ -5,6 +5,11 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/mitchellh/go-homedir"
+
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
+
 	"sigs.k8s.io/kustomize/kyaml/errors"
 
 	v1 "k8s.io/api/core/v1"
@@ -20,36 +25,71 @@ import (
 )
 
 const (
-	logLevelFunctionArg  = "logLevel"
-	logLevelDefaultValue = zerolog.InfoLevel
+	logLevelFunctionArg     = "logLevel"
+	cacheDirFunctionArg     = "cacheDir"
+	keepCacheFunctionArg    = "keepCache"
+	gitKeySecretFunctionArg = "gitKeySecretID"
+	gitKeyFileFunctionArg   = "gitKeyFile"
 
-	deleteCacheFunctionArg  = "deleteCache"
-	deleteCacheDefaultValue = true
-
-	cacheDirFunctionArg = "cacheDir"
+	defaultLogLevel   = zerolog.InfoLevel
+	defaultKeepCache  = false
+	defaultGitKeyFile = "~/.ssh/id_rsa"
 )
 
-var logger = zerolog.New(os.Stderr).With().Timestamp().Logger()
-
+// Entry point for the sync custom Kpt function.
 func main() {
-	proc := newProcessor()
-	rw := phonyByteReadWriter()
-	//rw := realByteReadWriter()
-	if err := framework.Execute(proc, rw); err != nil {
-		logger.Fatal().Err(err).Msgf("Error performing sync operation %v", err == nil)
+	if err := realMain(); err != nil {
+		logger.Fatal().Err(err).Msgf("Error performing sync operation")
 	}
 }
 
+// realMain executes the sync operation and returns any errors.
+func realMain() error {
+	proc := newProcessor()
+	rw, err := readWriter()
+	if err != nil {
+		return err
+	}
+
+	return framework.Execute(proc, rw)
+}
+
+// newProcessor returns the framework.ResourceListProcessor for the custom sync function.
 func newProcessor() framework.ResourceListProcessor {
-	var functionConfig v1.ConfigMap
+	var cm v1.ConfigMap
 	delegate := &filters.ClusterPackagesFilter{Logger: logger}
 
 	filter := kio.FilterFunc(func(nodes []*kyaml.RNode) ([]*kyaml.RNode, error) {
 		var err error
 		var ok bool
 
-		logLevel := logLevelDefaultValue
-		if v, ok := functionConfig.Data[logLevelFunctionArg]; ok {
+		if secretID, ok := cm.Data[gitKeySecretFunctionArg]; ok {
+			key, err := readGitPrivateKeySecret(secretID)
+			if err != nil {
+				return nil, err
+			}
+
+			delegate.GitPrivateKey = key
+		} else {
+			f, ok := cm.Data[gitKeyFileFunctionArg]
+			if !ok {
+				f, err = homedir.Expand(defaultGitKeyFile)
+				if err != nil {
+					return nil, err
+				}
+				logger.Info().Msgf("No Git key specified - falling back to %s", f)
+			}
+
+			key, err := readGitPrivateKeyFile(f)
+			if err != nil {
+				return nil, err
+			}
+
+			delegate.GitPrivateKey = key
+		}
+
+		logLevel := defaultLogLevel
+		if v, ok := cm.Data[logLevelFunctionArg]; ok {
 			logLevel, err = zerolog.ParseLevel(v)
 			if err != nil {
 				return nil, errors.WrapPrefixf(err, "could not parse log level")
@@ -58,11 +98,11 @@ func newProcessor() framework.ResourceListProcessor {
 
 		zerolog.SetGlobalLevel(logLevel)
 
-		cleanCache := deleteCacheDefaultValue
+		keepCache := defaultKeepCache
 
-		delegate.CacheDir, ok = functionConfig.Data[cacheDirFunctionArg]
+		delegate.CacheDir, ok = cm.Data[cacheDirFunctionArg]
 		if ok {
-			cleanCache = false
+			keepCache = true
 		} else {
 			delegate.CacheDir, err = ioutil.TempDir("", "")
 			if err != nil {
@@ -70,15 +110,15 @@ func newProcessor() framework.ResourceListProcessor {
 			}
 		}
 
-		if v, ok := functionConfig.Data[deleteCacheFunctionArg]; ok {
-			cleanCache, err = strconv.ParseBool(v)
+		if v, ok := cm.Data[keepCacheFunctionArg]; ok {
+			keepCache, err = strconv.ParseBool(v)
 			if err != nil {
-				return nil, errors.WrapPrefixf(err, "could not parse deleteCache argument")
+				return nil, errors.WrapPrefixf(err, "could not parse keepCache argument")
 			}
 		}
 
 		defer func() {
-			if !cleanCache {
+			if keepCache {
 				return
 			}
 
@@ -90,30 +130,43 @@ func newProcessor() framework.ResourceListProcessor {
 		return delegate.Filter(nodes)
 	})
 
-	return framework.SimpleProcessor{Config: &functionConfig, Filter: filter}
+	return framework.SimpleProcessor{Config: &cm, Filter: filter}
 }
 
-func realByteReadWriter() *kio.ByteReadWriter {
-	return &kio.ByteReadWriter{
-		Reader: os.Stdin,
-		Writer: os.Stdout,
+// readWriter returns a kio.ByteReadWriter that is configured to read from stdin if no command line argument
+// has been specified. If command line arguments are specified, the first argument is assumed to be a file
+// containing a framework.ResourceList - this can be useful for debugging locally.
+func readWriter() (*kio.ByteReadWriter, error) {
+	r := os.Stdin
+	if len(os.Args) > 0 {
+		var err error
+		r, err = os.Open(os.Args[0])
+		if err != nil {
+			return nil, errors.WrapPrefixf(err, "could not read file argument")
+		}
 	}
+
+	return &kio.ByteReadWriter{Reader: r}, nil
 }
 
-func phonyByteReadWriter() *kio.ByteReadWriter {
-	f, err := os.Open("cmd/sync/test-data/kpt-rl.yaml")
+// readGitPrivateKeySecret reads the Git private key file from AWS Secrets Manager.
+func readGitPrivateKeySecret(secretID string) ([]byte, error) {
+	sess, err := session.NewSession()
 	if err != nil {
-		logger.Fatal().Err(err).Msgf("Error reading input file")
+		return nil, err
 	}
 
-	return &kio.ByteReadWriter{
-		Reader: f,
-		Writer: os.Stdout,
-		FunctionConfig: kyaml.MustParse(
-			`
-data:
-  logLevel: debug
-      `,
-		),
+	client := secretsmanager.New(sess)
+	req := secretsmanager.GetSecretValueInput{SecretId: &secretID}
+	res, err := client.GetSecretValue(&req)
+	if err != nil {
+		return nil, err
 	}
+
+	return []byte(*res.SecretString), nil
+}
+
+// readGitPrivateKeyFile reads the Git private key file from the filesystem.
+func readGitPrivateKeyFile(path string) ([]byte, error) {
+	return ioutil.ReadFile(path)
 }

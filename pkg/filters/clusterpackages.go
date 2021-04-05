@@ -7,10 +7,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
+
 	"github.com/GoogleContainerTools/kpt/pkg/kptfile"
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/rs/zerolog"
 	"sigs.k8s.io/kustomize/kyaml/errors"
 	"sigs.k8s.io/kustomize/kyaml/kio"
@@ -78,6 +79,8 @@ type Variable struct {
 type ClusterPackagesFilter struct {
 	// CacheDir specifies a directory that is used by the filter to cache Git repositories.
 	CacheDir string
+	// GitPrivateKey specifies the the private key to use for Git.
+	GitPrivateKey []byte
 	// Logger specifies the logger to be used by the filter.
 	Logger zerolog.Logger
 }
@@ -147,6 +150,12 @@ func (f *ClusterPackagesFilter) fetchClusterResources(ctx context.Context, res *
 
 		pkgFilters = append(pkgFilters, &TemplateFilter{})
 
+		pkgFilters = append(pkgFilters, &UpdatePathFilter{
+			Func: func(path string) (string, error) {
+				return filepath.Join(res.Spec.BaseDir, path), nil
+			},
+		})
+
 		for _, f := range pkgFilters {
 			nodes, err = f.Filter(nodes)
 			if err != nil {
@@ -185,7 +194,7 @@ func (f *ClusterPackagesFilter) fetchPackage(ctx context.Context, pkg *Package) 
 	if !isCached {
 		f.Logger.Debug().Msgf("Cloning repository %s to %s", pkg.Git.Repo, repoDir)
 
-		auth, err := ssh.NewPublicKeysFromFile("git", "/Users/aeldridge/.ssh/id_rsa", "")
+		auth, err := ssh.NewPublicKeys("git", f.GitPrivateKey, "")
 		if err != nil {
 			return nil, errors.WrapPrefixf(err, "error retrieving Git private key information")
 		}
