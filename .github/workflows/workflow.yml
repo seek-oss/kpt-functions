@@ -1,4 +1,4 @@
-name: Build functions, publish to DockerHub
+name: Lint, test, build functions and publish to DockerHub
 on: [push, pull_request]
 jobs:
   lint:
