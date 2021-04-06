@@ -30,10 +30,8 @@ clean:
 
 .PHONY: lint
 lint:
-	@$(call banner,Running Shfmt)
-	@shfmt -i 2 -ci -sr -bn -d "$(sh_src)"
-	@$(call banner,Running Shellcheck)
-	@shellcheck "$(sh_src)"
+	@$(call banner,Running golangci-lint)
+	@golangci-lint run
 
 .PHONY: test
 test:

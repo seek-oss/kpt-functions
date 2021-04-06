@@ -98,4 +98,3 @@ kpt fn source \
   --network -- logLevel=debug \
   | kpt fn sink .
 ```
-
