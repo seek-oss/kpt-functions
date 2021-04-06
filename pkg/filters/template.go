@@ -81,7 +81,7 @@ func (f *TemplateFilter) process(resource *yaml.RNode, template *gotemplate.Temp
 			return "", errors.Wrap(err)
 		}
 
-		return string(buf.Bytes()), nil
+		return buf.String(), nil
 	}
 
 	return f.render(resource, exec, false)
@@ -170,7 +170,7 @@ func (f *TemplateFilter) load(kptfile *yaml.RNode) (*gotemplate.Template, *Templ
 			return "", errors.Wrap(err)
 		}
 
-		return string(buf.Bytes()), nil
+		return buf.String(), nil
 	}
 
 	template.Funcs(gotemplate.FuncMap{"value": valueFn, "render": renderFn})
