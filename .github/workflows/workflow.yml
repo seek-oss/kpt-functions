@@ -1,5 +1,5 @@
 name: Build functions, publish to DockerHub
-on: push
+on: [push, pull_request]
 jobs:
   lint:
     name: lint
