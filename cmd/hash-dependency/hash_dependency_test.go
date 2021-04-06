@@ -4,11 +4,11 @@ import (
 	"testing"
 )
 
-type TestCase struct {
-	testCase       string
-	input          string
-	expectedOutput string
-}
+//type TestCase struct {
+//	testCase       string
+//	input          string
+//	expectedOutput string
+//}
 
 func TestHashDependency_Filter(t *testing.T) {
 	//	testCases := []TestCase{
