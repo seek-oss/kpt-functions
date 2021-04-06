@@ -1,4 +1,4 @@
-name: Build functions, publish to Dockerhub
+name: Run unit tests
 on: push
 jobs:
   build:
