@@ -1,7 +1,8 @@
 package main
 
 import (
-	"io/ioutil"
+  "github.com/seek-oss/kpt-functions/pkg/log"
+  "io/ioutil"
 	"os"
 	"strconv"
 
@@ -36,8 +37,12 @@ const (
 	defaultGitKeyFile = "~/.ssh/id_rsa"
 )
 
+// logger is the configured zerolog Logger instance.
+var logger zerolog.Logger
+
 // Entry point for the sync custom Kpt function.
 func main() {
+  logger = log.GetLogger(defaultLogLevel)
 	if err := realMain(); err != nil {
 		logger.Fatal().Err(err).Msgf("Error performing sync operation")
 	}
