@@ -83,6 +83,35 @@ items:
 `,
         expectedError: errors.New("wrong number of matches for hash selector. Expected 1, got 0"),
 			},
+      {
+        testCase: "Errors when hash target exists multiple times",
+        input: `
+apiVersion: config.kubernetes.io/v1alpha1
+kind: ResourceList
+items:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: example
+    namespace: example
+    annotations:
+      kpt.seek.com/hash-dependency/config-map: ConfigMap/my-config-map
+  spec: {}
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: my-config-map
+    namespace: example
+  data: {}
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: my-config-map
+    namespace: example
+  data: {}
+`,
+        expectedError: errors.New("wrong number of matches for hash selector. Expected 1, got 2"),
+      },
 			{
 				testCase: "Recomputes hash when label is already there",
 				input: `
