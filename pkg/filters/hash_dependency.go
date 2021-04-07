@@ -66,7 +66,7 @@ func hashDependency(rn *yaml.RNode, nodes []*yaml.RNode, hashTarget string) (*ya
   }
 
   if len(matchingResources) != 1 {
-    return nil, fmt.Errorf("found multiple targets that matched hash selector. Expected 1, got %d", len(matchingResources))
+    return nil, fmt.Errorf("wrong number of matches for hash selector. Expected 1, got %d", len(matchingResources))
   }
 
   targetBytes := []byte(matchingResources[0].MustString())
