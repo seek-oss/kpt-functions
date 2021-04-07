@@ -6,19 +6,9 @@ import (
 
 	"sigs.k8s.io/kustomize/kyaml/kio"
 
-	"github.com/go-errors/errors"
-
 	"github.com/google/go-cmp/cmp"
 	"sigs.k8s.io/kustomize/kyaml/fn/framework"
-	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
-
-func newProcessor() framework.ResourceListProcessor {
-	renderer := &TemplateFilter{}
-	return framework.SimpleProcessor{
-		Filter: renderer,
-	}
-}
 
 func TestTemplateRenderer_Simple_Filter(t *testing.T) {
 	input := bytes.NewBufferString(`
@@ -74,7 +64,9 @@ items:
 		Writer: output,
 	}
 
-	if err := framework.Execute(newProcessor(), rw); err != nil {
+  filter := &TemplateFilter{}
+
+	if err := framework.Execute(newProcessor(filter), rw); err != nil {
 		fatalError(t, err)
 	}
 
@@ -214,7 +206,9 @@ items:
 		Writer: output,
 	}
 
-	if err := framework.Execute(newProcessor(), rw); err != nil {
+  filter := &TemplateFilter{}
+
+	if err := framework.Execute(newProcessor(filter), rw); err != nil {
 		fatalError(t, err)
 	}
 
@@ -314,19 +308,4 @@ items:
 	if diff := cmp.Diff(normaliseYAML(expected), normaliseYAML(output.String())); diff != "" {
 		t.Errorf("(-want +got)\n%s", diff)
 	}
-}
-
-func normaliseYAML(doc string) string {
-	return yaml.MustParse(doc).MustString()
-}
-
-func fatalError(t *testing.T, err error) {
-	t.Helper()
-
-	if e, ok := err.(*errors.Error); ok {
-		trace := e.ErrorStack()
-		t.Fatal(err, trace)
-	}
-
-	t.Fatal(err)
 }

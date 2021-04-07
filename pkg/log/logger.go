@@ -1,18 +1,15 @@
-package main
+package log
 
 import (
-	"fmt"
-	"os"
+  "fmt"
+  "os"
 	"strings"
 	"time"
 
 	"github.com/rs/zerolog"
 )
 
-// logger is the configured zerolog Logger instance.
-var logger zerolog.Logger
-
-func init() {
+func GetLogger(defaultLogLevel zerolog.Level) zerolog.Logger {
 	zerolog.SetGlobalLevel(defaultLogLevel)
 
 	logWriter := zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339}
@@ -29,5 +26,5 @@ func init() {
 		return fmt.Sprintf("%s", i)
 	}
 
-	logger = zerolog.New(logWriter).With().Timestamp().Logger()
+	return zerolog.New(logWriter).With().Timestamp().Logger()
 }

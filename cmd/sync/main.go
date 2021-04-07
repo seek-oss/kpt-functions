@@ -1,7 +1,9 @@
 package main
 
 import (
-	"io/ioutil"
+  "github.com/seek-oss/kpt-functions/pkg/log"
+  "github.com/seek-oss/kpt-functions/pkg/util"
+  "io/ioutil"
 	"os"
 	"strconv"
 
@@ -36,8 +38,12 @@ const (
 	defaultGitKeyFile = "~/.ssh/id_rsa"
 )
 
+// logger is the configured zerolog Logger instance.
+var logger zerolog.Logger
+
 // Entry point for the sync custom Kpt function.
 func main() {
+  logger = log.GetLogger(defaultLogLevel)
 	if err := realMain(); err != nil {
 		logger.Fatal().Err(err).Msgf("Error performing sync operation")
 	}
@@ -46,7 +52,7 @@ func main() {
 // realMain executes the sync operation and returns any errors.
 func realMain() error {
 	proc := newProcessor()
-	rw, err := readWriter()
+	rw, err := util.ReadWriter()
 	if err != nil {
 		return err
 	}
@@ -131,22 +137,6 @@ func newProcessor() framework.ResourceListProcessor {
 	})
 
 	return framework.SimpleProcessor{Config: &cm, Filter: filter}
-}
-
-// readWriter returns a kio.ByteReadWriter that is configured to read from stdin if no command line argument
-// has been specified. If command line arguments are specified, the first argument is assumed to be a file
-// containing a framework.ResourceList - this can be useful for debugging locally.
-func readWriter() (*kio.ByteReadWriter, error) {
-	r := os.Stdin
-	if len(os.Args) > 1 {
-		var err error
-		r, err = os.Open(os.Args[1])
-		if err != nil {
-			return nil, errors.WrapPrefixf(err, "could not read file argument")
-		}
-	}
-
-	return &kio.ByteReadWriter{Reader: r}, nil
 }
 
 // readGitPrivateKeySecret reads the Git private key file from AWS Secrets Manager.
