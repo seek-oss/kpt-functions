@@ -2,18 +2,6 @@
 
 ## Configuration
 
-```yaml
-apiVersion: kpt.seek.com/v1alpha1
-kind: HashDependency
-metadata:
-  name: hash-dependency
-  annotations:
-    config.kubernetes.io/function: |
-      container:
-        image: seek/kpt-hash-dependency:latest
-spec: {}
-```
-
 Example file
 
 ```yaml
@@ -46,4 +34,12 @@ metadata:
     ConfigMap/my-config-map: abcdef12345689
 spec:
 ...
+```
+
+## Usage
+
+```bash
+kpt fn source <dir-or-files> \
+  | kpt fun run --image docker.io/seek/kpt-hash-dependency:latest -- logLevel=debug
+  | kpt fn sink <dir>
 ```
