@@ -25,6 +25,7 @@ type HashDependencyFilter struct {
 
 func (dh *HashDependencyFilter) Filter(input []*yaml.RNode) ([]*yaml.RNode, error) {
   var output []*yaml.RNode
+
   for _, node := range input {
     meta, err := node.GetMeta()
     if err != nil {
