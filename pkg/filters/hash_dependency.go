@@ -10,7 +10,7 @@ import (
   "strings"
 )
 
-const hashDependencyAnnotationPrefix = "kpt.seek.com/hash-dependency"
+const hashDependencyAnnotationPrefix string = "kpt.seek.com/hash-dependency"
 
 type HashDependencyFilter struct {
   // Logger specifies the logger to be used by the filter.
