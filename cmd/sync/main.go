@@ -1,29 +1,28 @@
 package main
 
 import (
+  "github.com/mitchellh/go-homedir"
   "github.com/seek-oss/kpt-functions/pkg/log"
   "github.com/seek-oss/kpt-functions/pkg/util"
   "io/ioutil"
-	"os"
-	"strconv"
+  "os"
+  "strconv"
 
-	"github.com/mitchellh/go-homedir"
+  "github.com/aws/aws-sdk-go/aws/session"
+  "github.com/aws/aws-sdk-go/service/secretsmanager"
 
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/secretsmanager"
+  "sigs.k8s.io/kustomize/kyaml/errors"
 
-	"sigs.k8s.io/kustomize/kyaml/errors"
+  v1 "k8s.io/api/core/v1"
 
-	v1 "k8s.io/api/core/v1"
+  "github.com/seek-oss/kpt-functions/pkg/filters"
 
-	"github.com/seek-oss/kpt-functions/pkg/filters"
+  kyaml "sigs.k8s.io/kustomize/kyaml/yaml"
 
-	kyaml "sigs.k8s.io/kustomize/kyaml/yaml"
+  "sigs.k8s.io/kustomize/kyaml/fn/framework"
+  "sigs.k8s.io/kustomize/kyaml/kio"
 
-	"sigs.k8s.io/kustomize/kyaml/fn/framework"
-	"sigs.k8s.io/kustomize/kyaml/kio"
-
-	"github.com/rs/zerolog"
+  "github.com/rs/zerolog"
 )
 
 const (
