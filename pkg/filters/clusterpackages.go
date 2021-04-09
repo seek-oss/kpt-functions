@@ -32,6 +32,11 @@ const (
 	SetByClusterOverride = "cluster-override"
 	// SetByPackageOverride defines the set-by value used when Kpt packages setters are set by package-level variables.
 	SetByPackageOverride = "package-override"
+
+	// AuthSocketEnvVar defines the name of the environment variable to use to populate the auth socket to be used for
+	// Git authentication via ssh agent. This auth socket should be bind mounted into the docker container that executes
+	// this filter
+	AuthSockEnvVar = "SSH_AUTH_SOCK"
 )
 
 // ClusterPackages defines the "client-side CRD" that is managed by the ClusterPackagesFilter. When
@@ -194,10 +199,19 @@ func (f *ClusterPackagesFilter) fetchPackage(ctx context.Context, pkg *Package) 
 	if !isCached {
 		f.Logger.Debug().Msgf("Cloning repository %s to %s", pkg.Git.Repo, repoDir)
 
-		auth, err := ssh.NewPublicKeys("git", f.GitPrivateKey, "")
-		if err != nil {
-			return nil, errors.WrapPrefixf(err, "error retrieving Git private key information")
-		}
+		var auth ssh.AuthMethod
+
+    if os.Getenv(AuthSockEnvVar) != "" {
+      auth, err = ssh.NewSSHAgentAuth("git")
+      if err != nil {
+        return nil, errors.WrapPrefixf(err, "error using ssh agent auth")
+      }
+    } else {
+      auth, err = ssh.NewPublicKeys("git", f.GitPrivateKey, "")
+      if err != nil {
+        return nil, errors.WrapPrefixf(err, "error retrieving Git private key information")
+      }
+    }
 
 		repo, err = git.PlainCloneContext(ctx, repoDir, false, &git.CloneOptions{
 			URL:  pkg.Git.Repo,
