@@ -249,7 +249,7 @@ func (f *ClusterPackagesFilter) fetchPackage(ctx context.Context, pkg *Package) 
 
     default:
       if url.Scheme != HTTPSScheme {
-        return nil, errors.Errorf("got invalid scheme %s for anonymous authentication, use https scheme instead")
+        return nil, errors.Errorf("got invalid scheme %s for anonymous authentication, use https scheme instead", url.Scheme)
       }
       auth = nil
     }
