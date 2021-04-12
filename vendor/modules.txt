@@ -340,6 +340,7 @@ github.com/spf13/cobra
 github.com/spf13/pflag
 # github.com/stretchr/testify v1.6.1
 github.com/stretchr/testify/assert
+github.com/stretchr/testify/require
 # github.com/xanzy/ssh-agent v0.3.0
 github.com/xanzy/ssh-agent
 # github.com/xlab/treeprint v0.0.0-20181112141820-a009c3971eca
@@ -804,6 +805,7 @@ sigs.k8s.io/kustomize/kyaml/ext
 sigs.k8s.io/kustomize/kyaml/fieldmeta
 sigs.k8s.io/kustomize/kyaml/fix/fixsetters
 sigs.k8s.io/kustomize/kyaml/fn/framework
+sigs.k8s.io/kustomize/kyaml/fn/framework/frameworktestutil
 sigs.k8s.io/kustomize/kyaml/fn/runtime/container
 sigs.k8s.io/kustomize/kyaml/fn/runtime/exec
 sigs.k8s.io/kustomize/kyaml/fn/runtime/runtimeutil
