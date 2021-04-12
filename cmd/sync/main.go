@@ -103,9 +103,9 @@ func newProcessor() framework.ResourceListProcessor {
         }
       case filters.AuthMethodSSHAgent:
         delegate.AuthMethod = filters.AuthMethodSSHAgent
-      default:
-        delegate.AuthMethod = filters.AuthMethodNone
       }
+    } else {
+      delegate.AuthMethod = filters.AuthMethodNone
     }
 
 		logLevel := defaultLogLevel
