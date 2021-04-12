@@ -9,16 +9,22 @@ spec:
       git:
         repo: https://github.com/seek-oss/kpt-functions.git
         directory: examples/sync/basic/packages/some-application
-        ref: 4ac8ce51c4f395bb9cf623f2d52010418e524ecf
-        variables:
-          - name: replicas
-            value: 5
+        ref: 8d26c0a6e81b4bb3eb92ddf976c1338fdf3584cd
+      variables:
+        - name: replicas
+          value: 5
+        # This can be declared here without needing a variable at the global level.
+        # This allows packages to have the same setter name, but different values
+        # Otherwise, you would need to namespace all of your variables to avoid name collisions, e.g. two packages
+        # with the namespace setter would need to differentiate them by calling them my-package-namespace
+        - name: namespace
+          value: my-namespace
   variables:
     - name: account-id
       value: "12345678"
     - name: region
       value: ap-southeast-2
-    # This replicas value will be overridden by the replicas set above at the package level
+    # This value will be overridden by the value specified at the pockage level
     - name: replicas
       value: 3
     - name: cluster
