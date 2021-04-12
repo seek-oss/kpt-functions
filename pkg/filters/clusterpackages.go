@@ -1,21 +1,22 @@
 package filters
 
 import (
-	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"os"
-	"path/filepath"
+  "context"
+  "crypto/sha256"
+  "encoding/hex"
+  "net/url"
+  "os"
+  "path/filepath"
 
-	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
+  "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 
-	"github.com/GoogleContainerTools/kpt/pkg/kptfile"
-	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/rs/zerolog"
-	"sigs.k8s.io/kustomize/kyaml/errors"
-	"sigs.k8s.io/kustomize/kyaml/kio"
-	"sigs.k8s.io/kustomize/kyaml/yaml"
+  "github.com/GoogleContainerTools/kpt/pkg/kptfile"
+  "github.com/go-git/go-git/v5"
+  "github.com/go-git/go-git/v5/plumbing"
+  "github.com/rs/zerolog"
+  "sigs.k8s.io/kustomize/kyaml/errors"
+  "sigs.k8s.io/kustomize/kyaml/kio"
+  "sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
 const (
@@ -33,10 +34,16 @@ const (
 	// SetByPackageOverride defines the set-by value used when Kpt packages setters are set by package-level variables.
 	SetByPackageOverride = "package-override"
 
-	// AuthSocketEnvVar defines the name of the environment variable to use to populate the auth socket to be used for
+	// AuthSockEnvVar defines the name of the environment variable to use to populate the auth socket to be used for
 	// Git authentication via ssh agent. This auth socket should be bind mounted into the docker container that executes
 	// this filter
 	AuthSockEnvVar = "SSH_AUTH_SOCK"
+
+	// SSHScheme defines the scheme that identifies ssh based repo urls
+	SSHScheme = "ssh"
+
+	// HTTPSScheme defines the scheme that identifies https based repo urls
+	HTTPSScheme = "https"
 )
 
 // ClusterPackages defines the "client-side CRD" that is managed by the ClusterPackagesFilter. When
@@ -213,14 +220,25 @@ func (f *ClusterPackagesFilter) fetchPackage(ctx context.Context, pkg *Package) 
 
     var auth ssh.AuthMethod
 
+    url, err := url.Parse(pkg.Git.Repo)
+    if err != nil {
+      return nil, errors.WrapPrefixf(err, "failed to parse repo URL")
+    }
+
 		switch f.AuthMethod {
     case AuthMethodKeyFile:
+      if url.Scheme != SSHScheme {
+        return nil, errors.Errorf("got invalid scheme %s for auth method %s", url.Scheme, AuthMethodKeyFile)
+      }
       auth, err = ssh.NewPublicKeys("git", f.GitPrivateKey, "")
       if err != nil {
         return nil, errors.WrapPrefixf(err, "error retrieving Git private key information")
       }
 
     case AuthMethodSSHAgent:
+      if url.Scheme != SSHScheme {
+        return nil, errors.Errorf("got invalid scheme %s for auth method %s", url.Scheme, AuthMethodKeyFile)
+      }
       if os.Getenv(AuthSockEnvVar) == "" {
         return nil, errors.Errorf("Env variable %s must be defined to use ssh agent auth", AuthSockEnvVar)
       }
@@ -230,6 +248,9 @@ func (f *ClusterPackagesFilter) fetchPackage(ctx context.Context, pkg *Package) 
       }
 
     default:
+      if url.Scheme != HTTPSScheme {
+        return nil, errors.Errorf("got invalid scheme %s for anonymous authentication, use https scheme instead")
+      }
       auth = nil
     }
 
