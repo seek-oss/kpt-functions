@@ -7,12 +7,7 @@ import (
 
 func TestProcessor(t *testing.T) {
   checker := frameworktestutil.ProcessorResultsChecker{
-    TestDataDirectory:        "",
-    InputFilename:            "",
-    ExpectedOutputFilename:   "",
-    ExpectedErrorFilename:    "",
     Processor:                newProcessor,
-    UpdateExpectedFromActual: false,
   }
 
   checker.Assert(t)

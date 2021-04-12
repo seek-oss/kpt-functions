@@ -39,9 +39,6 @@ const (
 	// this filter
 	AuthSockEnvVar = "SSH_AUTH_SOCK"
 
-	// SSHScheme defines the scheme that identifies ssh based repo urls
-	SSHScheme = "ssh"
-
 	// HTTPSScheme defines the scheme that identifies https based repo urls
 	HTTPSScheme = "https"
 )
@@ -220,25 +217,14 @@ func (f *ClusterPackagesFilter) fetchPackage(ctx context.Context, pkg *Package) 
 
     var auth ssh.AuthMethod
 
-    url, err := url.Parse(pkg.Git.Repo)
-    if err != nil {
-      return nil, errors.WrapPrefixf(err, "failed to parse repo URL")
-    }
-
 		switch f.AuthMethod {
     case AuthMethodKeyFile:
-      if url.Scheme != SSHScheme {
-        return nil, errors.Errorf("got invalid scheme %s for auth method %s", url.Scheme, AuthMethodKeyFile)
-      }
       auth, err = ssh.NewPublicKeys("git", f.GitPrivateKey, "")
       if err != nil {
         return nil, errors.WrapPrefixf(err, "error retrieving Git private key information")
       }
 
     case AuthMethodSSHAgent:
-      if url.Scheme != SSHScheme {
-        return nil, errors.Errorf("got invalid scheme %s for auth method %s", url.Scheme, AuthMethodKeyFile)
-      }
       if os.Getenv(AuthSockEnvVar) == "" {
         return nil, errors.Errorf("Env variable %s must be defined to use ssh agent auth", AuthSockEnvVar)
       }
@@ -248,8 +234,13 @@ func (f *ClusterPackagesFilter) fetchPackage(ctx context.Context, pkg *Package) 
       }
 
     default:
-      if url.Scheme != HTTPSScheme {
-        return nil, errors.Errorf("got invalid scheme %s for anonymous authentication, use https scheme instead", url.Scheme)
+      repoUrl, err := url.Parse(pkg.Git.Repo)
+      if err != nil {
+        return nil, errors.WrapPrefixf(err, "failed to parse repo URL")
+      }
+
+      if repoUrl.Scheme != HTTPSScheme {
+        return nil, errors.Errorf("got invalid scheme %s for anonymous authentication, use https scheme instead", repoUrl.Scheme)
       }
       auth = nil
     }
