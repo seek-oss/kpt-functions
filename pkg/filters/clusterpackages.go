@@ -233,7 +233,6 @@ func (f *ClusterPackagesFilter) fetchPackage(ctx context.Context, pkg *Package) 
       auth = nil
     }
 
-
     cloneOptions := &git.CloneOptions{
       URL: pkg.Git.Repo,
     }

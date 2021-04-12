@@ -103,6 +103,11 @@ func newProcessor() framework.ResourceListProcessor {
         }
       case filters.AuthMethodSSHAgent:
         delegate.AuthMethod = filters.AuthMethodSSHAgent
+      case filters.AuthMethodNone:
+        delegate.AuthMethod = filters.AuthMethodNone
+      default:
+        err = errors.Errorf("Auth method %s is invalid", authMethod)
+        return nil, err
       }
     } else {
       delegate.AuthMethod = filters.AuthMethodNone
