@@ -181,7 +181,8 @@ data:
     {{render "my-template" "foo" "bar"}}
 ```
 
-**Important!**: Make sure you have a setter configured in your Kpt package with the name matching the name of the template
+**Important!**: Make sure you have a setter configured in your Kpt package with the name matching the name of the template,
+as well as for any values used by the template (even if they're not used in the package itself)
 
 In your `packages.yaml`:
 

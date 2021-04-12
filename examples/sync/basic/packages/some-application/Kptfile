@@ -31,3 +31,8 @@ openAPI:
         setter:
           name: replicas
           value: "3"
+    io.k8s.cli.setters.cluster:
+      x-k8s-cli:
+        setter:
+          name: cluster
+          value: placeholder

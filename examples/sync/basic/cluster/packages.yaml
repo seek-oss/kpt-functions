@@ -7,9 +7,9 @@ spec:
   packages:
     - name: some-application
       git:
-        repo: git@github.com:seek-oss/kpt-functions.git
+        repo: https://github.com/seek-oss/kpt-functions.git
         directory: examples/sync/basic/packages/some-application
-        ref: 5fc702d3dd0f46509283cb0bcc4a3327d1ee8b1
+        ref: 4ac8ce51c4f395bb9cf623f2d52010418e524ecf
         variables:
           - name: replicas
             value: 5
@@ -27,6 +27,6 @@ spec:
       value: |
         {
           "region": "{{value "region"}}",
-          "cluster": "{{value "my-cluster"}}",
+          "cluster": "{{value "cluster"}}",
           "arg-one": "{{args 0}}"
         }
