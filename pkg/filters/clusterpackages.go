@@ -80,6 +80,16 @@ type Variable struct {
 	Value string `yaml:"value,omitempty"`
 }
 
+// AuthMethod is a method of authenticating to Git repositories
+type AuthMethod string
+
+const (
+  AuthMethodKeyFile AuthMethod = "keyFile"
+  AuthMethodKeySecret AuthMethod = "keySecret"
+  AuthMethodSSHAgent AuthMethod = "sshAgent"
+  AuthMethodNone AuthMethod = "none"
+)
+
 // ClusterPackagesFilter defines a kio.Filter that processes ClusterPackages custom resources.
 type ClusterPackagesFilter struct {
 	// CacheDir specifies a directory that is used by the filter to cache Git repositories.
@@ -88,6 +98,8 @@ type ClusterPackagesFilter struct {
 	GitPrivateKey []byte
 	// Logger specifies the logger to be used by the filter.
 	Logger zerolog.Logger
+	// AuthMethod specifies the method to use for authenticating to Git repositories
+	AuthMethod AuthMethod
 }
 
 // Filter implements kio.Filter.Filter.
@@ -199,24 +211,38 @@ func (f *ClusterPackagesFilter) fetchPackage(ctx context.Context, pkg *Package) 
 	if !isCached {
 		f.Logger.Debug().Msgf("Cloning repository %s to %s", pkg.Git.Repo, repoDir)
 
-		var auth ssh.AuthMethod
+    var auth ssh.AuthMethod
 
-    if os.Getenv(AuthSockEnvVar) != "" {
-      auth, err = ssh.NewSSHAgentAuth("git")
-      if err != nil {
-        return nil, errors.WrapPrefixf(err, "error using ssh agent auth")
-      }
-    } else {
+		switch f.AuthMethod {
+    case AuthMethodKeyFile:
       auth, err = ssh.NewPublicKeys("git", f.GitPrivateKey, "")
       if err != nil {
         return nil, errors.WrapPrefixf(err, "error retrieving Git private key information")
       }
+
+    case AuthMethodSSHAgent:
+      if os.Getenv(AuthSockEnvVar) == "" {
+        return nil, errors.Errorf("Env variable %s must be defined to use ssh agent auth", AuthSockEnvVar)
+      }
+      auth, err = ssh.NewSSHAgentAuth("git")
+      if err != nil {
+        return nil, errors.WrapPrefixf(err, "error using ssh agent auth")
+      }
+
+    default:
+      auth = nil
     }
 
-		repo, err = git.PlainCloneContext(ctx, repoDir, false, &git.CloneOptions{
-			URL:  pkg.Git.Repo,
-			Auth: auth,
-		})
+
+    cloneOptions := &git.CloneOptions{
+      URL: pkg.Git.Repo,
+    }
+
+    if auth != nil {
+      cloneOptions.Auth = auth
+    }
+
+		repo, err = git.PlainCloneContext(ctx, repoDir, false, cloneOptions)
 		if err != nil {
 			return nil, errors.WrapPrefixf(err, "error cloning Git repository %s", pkg.Git.Repo)
 		}
