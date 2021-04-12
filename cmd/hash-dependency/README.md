@@ -1,5 +1,11 @@
 # Kpt Hash-Dependency Function
 
+A function to force updates to a resource based on the hash of another resource changing.
+
+## Examples
+
+* [Basic example](./examples/hash-dependency/basic/README.md)
+
 ## Motivations
 
 Some Kubernetes applications read their config from a config map or some other configuration source, but are not
@@ -50,6 +56,6 @@ spec:
 
 ```bash
 kpt fn source <dir-or-files> \
-  | kpt fun run --image docker.io/seek/kpt-hash-dependency:latest -- logLevel=debug
+  | kpt fn run --image docker.io/seek/kpt-hash-dependency:latest -- logLevel=debug \
   | kpt fn sink <dir>
 ```
