@@ -1,4 +1,13 @@
 # Kpt Hash-Dependency Function
+### Motivations
+
+Some Kubernetes applications read their config from a config map or some other configuration source, but are not
+configured to automatically reload this configuration when it changes. The solution to this is to restart the
+workload, but this must be done manually.
+
+The hash dependency function allows for embedding a hash of a dependant piece of configuration in a workload spec.
+When the configuration changes, the workload will necessarily be re-created because of the changed
+annotation in its spec.
 
 ## Configuration
 

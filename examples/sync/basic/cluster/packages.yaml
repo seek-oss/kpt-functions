@@ -1,0 +1,32 @@
+apiVersion: kpt.seek.com/v1alpha1
+kind: ClusterPackages
+metadata:
+  name: my-cluster
+spec:
+  baseDir: examples/sync/basic/cluster/packages
+  packages:
+    - name: some-application
+      git:
+        repo: git@github.com:seek-oss/kpt-functions.git
+        directory: examples/sync/basic/packages/some-application
+        ref: 5fc702d3dd0f46509283cb0bcc4a3327d1ee8b1
+        variables:
+          - name: replicas
+            value: 5
+  variables:
+    - name: account-id
+      value: "12345678"
+    - name: region
+      value: ap-southeast-2
+    # This replicas value will be overridden by the replicas set above at the package level
+    - name: replicas
+      value: 3
+    - name: cluster
+      value: my-cluster
+    - name: config-template
+      value: |
+        {
+          "region": "{{value "region"}}",
+          "cluster": "{{value "my-cluster"}}",
+          "arg-one": "{{args 0}}"
+        }
