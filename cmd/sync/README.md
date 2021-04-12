@@ -68,29 +68,69 @@ The sync function addresses the following shortcomings in Kpt as it exists today
 
 ## Authentication
 
-In order to clone repositories that are private, Kpt needs SSH credentials.
+Depending on the type of repository you are syncing, you may need to provide a method for the sync function to authenticate
+to the repository.
 
-### Mounting a key file
+### Anonymous auth
 
-You can mount an identity file from your `.ssh` directory. However this requires that you have no passphrase on
-the ssh key, which is not recommended.
+If the repo you want to sync from is public, use the https URL of your repo as the `git.repo` field in your packages
+list.
 
-This can be accomplished by passing `--mount type=bind,source="${HOME}/.ssh/id_rsa,target=/.ssh/id_rsa,readonly"` to
-`kpt fn run`
+### SSH auth using a local keyfile
+
+You can use a locally stored SSH key to authenticate against a private repository.
+Your SSH key must not have a passphrase.
+
+Usage:
+
+```bash
+kpt fn source \
+  config/development/ap-southeast-2/a/packages.yaml \
+  | kpt fn run \
+  --image docker.io/seek/kpt-sync:latest \
+  --mount type=bind,source="${HOME}/.ssh/id_rsa,target=/.ssh/id_rsa,readonly"
+  --network -- logLevel=debug authMethod=keyFile \
+  | kpt fn sink .
+```
+
+You can optionally pass the name of the keyfile using `gitKeyFile=<path/to/key/file>` and ensuring that you mount
+your desired key file to the passed path.
+
+### SSH auth using a keyfile from AWS Secrets Manager
+
+You can use an SSH key stored in AWS Secrets Manager to authenticate against a private repository.
+Your SSH key must not have a passphrase.
+
+Usage:
+
+```bash
+kpt fn source \
+  config/development/ap-southeast-2/a/packages.yaml \
+  | kpt fn run \
+  --image docker.io/seek/kpt-sync:latest \
+  --network -- logLevel=debug authMethod=keySecret gitKeySecretID=secret-id-123\
+  | kpt fn sink .
+```
 
 ### SSH agent forwarding
 
 If you are running an SSH agent on your host, you can forward this host into your Docker container to authenticate
 using keys already loaded into its keyring.
 
-Pass the following to `kpt fn run`
+Usage:
 
-```
---mount type=bind,src="/run/host-services/ssh-auth.sock",target="/run/host-services/ssh-auth.sock" \
--e SSH_AUTH_SOCK="/run/host-services/ssh-auth.sock"
+```bash
+kpt fn source \
+  config/development/ap-southeast-2/a/packages.yaml \
+  | kpt fn run \
+  --image docker.io/seek/kpt-sync:latest \
+  --mount type=bind,src="/run/host-services/ssh-auth.sock",target="/run/host-services/ssh-auth.sock" \
+  -e SSH_AUTH_SOCK="/run/host-services/ssh-auth.sock"
+  --network -- logLevel=debug authMethod=sshAgent \
+  | kpt fn sink .
 ```
 
-### Troubleshooting agent forwarding
+#### Troubleshooting agent forwarding
 
 SSH agent forwarding between OSX and Docker containers seems to be incredibly complicated and hard to get right.
 There are numerous threads that show seemingly simple fixes that don't seem to work for others.
@@ -122,6 +162,20 @@ docker run -it --privileged --pid=host debian nsenter -t 1 -m -u -n -i sh -c 'ch
 
 This didn't work one day, and then did the next day. I don't know why.
 
+## Argument reference
+
+The sync function accepts a number of CLI arguments.
+After passing any arguments to `kpt fn run`, pass a `--` and then pass your custom arguments for this function.
+Set these using `<key>=<value>` syntax.
+
+The following arguments are supported:
+
+* `logLevel`: string, used to set the log level of the function. Valid values are standard [zerolog log levels](https://github.com/rs/zerolog#leveled-logging). Defaults to `info`.
+* `authMethod`: string, used to set the auth method that the sync function will use for checking out the package code. See above for usage instructions. Defaults to `none`.
+* `keepCache`: boolean, whether to keep the cached cloned repositories after the function exits. Use this to speed up execution by mounting a directory to the container to use as cache. Defaults to `false`.
+* `cacheDir`: string, the directory to use for cache.
+* `gitKeyFile`: string, the key file to use for authentication against private repos, when `authMethod=keyFile` is used. Defaults to `~/.ssh/id_rsa`.
+* `gitKeySecretID`: string, the AWS Secrets Manager secret ID to fetch the SSH key file from, when `authMethod=keySecret` is used.
 
 ## Advanced usage
 

@@ -1,5 +1,6 @@
 # Kpt Hash-Dependency Function
-### Motivations
+
+## Motivations
 
 Some Kubernetes applications read their config from a config map or some other configuration source, but are not
 configured to automatically reload this configuration when it changes. The solution to this is to restart the
