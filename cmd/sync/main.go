@@ -29,6 +29,7 @@ const (
 	logLevelFunctionArg     = "logLevel"
 	cacheDirFunctionArg     = "cacheDir"
 	keepCacheFunctionArg    = "keepCache"
+	authMethodFunctionArg   = "authMethod"
 	gitKeySecretFunctionArg = "gitKeySecretID"
 	gitKeyFileFunctionArg   = "gitKeyFile"
 
@@ -68,30 +69,49 @@ func newProcessor() framework.ResourceListProcessor {
 		var err error
 		var ok bool
 
-		if secretID, ok := cm.Data[gitKeySecretFunctionArg]; ok {
-			key, err := readGitPrivateKeySecret(secretID)
-			if err != nil {
-				return nil, err
-			}
+		if authMethod, ok := cm.Data[authMethodFunctionArg]; ok {
+		  switch filters.AuthMethod(authMethod) {
+      case filters.AuthMethodKeyFile:
+        f, ok := cm.Data[gitKeyFileFunctionArg]
+        if !ok {
+          f, err = homedir.Expand(defaultGitKeyFile)
+          if err != nil {
+            return nil, err
+          }
+          logger.Info().Msgf("No Git key specified - falling back to %s", f)
+        }
 
-			delegate.GitPrivateKey = key
-		} else {
-			f, ok := cm.Data[gitKeyFileFunctionArg]
-			if !ok {
-				f, err = homedir.Expand(defaultGitKeyFile)
-				if err != nil {
-					return nil, err
-				}
-				logger.Info().Msgf("No Git key specified - falling back to %s", f)
-			}
+        key, err := readGitPrivateKeyFile(f)
+        if err != nil {
+          return nil, err
+        }
 
-			key, err := readGitPrivateKeyFile(f)
-			if err != nil {
-				return nil, err
-			}
+        delegate.GitPrivateKey = key
+        delegate.AuthMethod = filters.AuthMethodKeyFile
+      case filters.AuthMethodKeySecret:
+        if secretID, ok := cm.Data[gitKeySecretFunctionArg]; ok {
+          key, err := readGitPrivateKeySecret(secretID)
+          if err != nil {
+            return nil, err
+          }
 
-			delegate.GitPrivateKey = key
-		}
+          delegate.GitPrivateKey = key
+          delegate.AuthMethod = filters.AuthMethodKeyFile
+        } else {
+          err = errors.Errorf("Auth method was %s but no %s argument was passed", filters.AuthMethodKeySecret, gitKeySecretFunctionArg)
+          return nil, err
+        }
+      case filters.AuthMethodSSHAgent:
+        delegate.AuthMethod = filters.AuthMethodSSHAgent
+      case filters.AuthMethodNone:
+        delegate.AuthMethod = filters.AuthMethodNone
+      default:
+        err = errors.Errorf("Auth method %s is invalid", authMethod)
+        return nil, err
+      }
+    } else {
+      delegate.AuthMethod = filters.AuthMethodNone
+    }
 
 		logLevel := defaultLogLevel
 		if v, ok := cm.Data[logLevelFunctionArg]; ok {

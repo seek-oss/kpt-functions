@@ -1,0 +1,18 @@
+apiVersion: config.kubernetes.io/v1alpha1
+kind: ResourceList
+items:
+  - apiVersion: kpt.seek.com/v1alpha1
+    kind: ClusterPackages
+    metadata:
+      name: sample
+    spec:
+      baseDir: .
+      packages:
+        - name: sample
+          git:
+            repo: foobar://github.com/seek-oss/packages.git
+            directory: sample
+            ref: 5fc702d3dd0f46509283cb0bcc4a3327d1ee8b1d
+functionConfig:
+  kind: ConfigMap
+  data: {}

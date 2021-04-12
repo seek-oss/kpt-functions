@@ -1,0 +1,7 @@
+apiVersion: config.kubernetes.io/v1alpha1
+kind: ResourceList
+items: []
+functionConfig:
+  kind: ConfigMap
+  data:
+    authMethod: invalid
