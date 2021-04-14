@@ -59,7 +59,7 @@ Because Kpt uses annotations inside of YAML comments, the `deployment.yaml` file
 Now we will learn how to create our own Kpt packages.
 We will be re-creating the Kpt package we consumed in the previous section.
 
-Create a git repository that you can publish somewhere. The repository can be public or private, as long as v0.19.4
+Create a git repository that you can publish somewhere. The repository can be public or private, as long as you
 have permission to pull and push from/to it.
 In the root directory of the repository, run:
 ```bash
