@@ -1,0 +1,38 @@
+apiVersion: kpt.dev/v1alpha1
+kind: Kptfile
+metadata:
+  name: some-application
+packageMetadata:
+  shortDescription: A sample Kubernetes application
+openAPI:
+  definitions:
+    io.k8s.cli.setters.account-id:
+      x-k8s-cli:
+        setter:
+          name: account-id
+          value: account-id
+    io.k8s.cli.setters.region:
+      x-k8s-cli:
+        setter:
+          name: region
+          value: ap-southeast-2
+    io.k8s.cli.setters.namespace:
+      x-k8s-cli:
+        setter:
+          name: namespace
+          value: some-namespace
+    io.k8s.cli.setters.config-template:
+      x-k8s-cli:
+        setter:
+          name: config-template
+          value: placeholder
+    io.k8s.cli.setters.replicas:
+      x-k8s-cli:
+        setter:
+          name: replicas
+          value: "3"
+    io.k8s.cli.setters.cluster:
+      x-k8s-cli:
+        setter:
+          name: cluster
+          value: placeholder

@@ -1,0 +1,34 @@
+apiVersion: kpt.dev/v1alpha1
+kind: Kptfile
+metadata:
+  name: sample-package
+packageMetadata:
+  shortDescription: sample description
+openAPI:
+  definitions:
+    io.k8s.cli.setters.replicas:
+      x-k8s-cli:
+        setter:
+          name: replicas
+          value: "2"
+          isSet: true
+    io.k8s.cli.setters.owner:
+      x-k8s-cli:
+        setter:
+          name: owner
+          value: my-team
+          isSet: true
+    io.k8s.cli.substitutions.image:
+      x-k8s-cli:
+        substitution:
+          name: image
+          pattern: kennethreitz/httpbin:${image-tag}
+          values:
+          - marker: ${image-tag}
+            ref: '#/definitions/io.k8s.cli.setters.image-tag'
+    io.k8s.cli.setters.image-tag:
+      x-k8s-cli:
+        setter:
+          name: image-tag
+          value: latest
+          isSet: true

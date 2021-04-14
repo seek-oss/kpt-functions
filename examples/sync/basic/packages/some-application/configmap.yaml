@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: some-application-cm
+  namespace: some-namespace # {"$kpt-set":"namespace"}
+data:
+  # {"$kpt-template":"true"}
+  configuration.json: |
+    {{render "config-template" "first-argument"}}
