@@ -15,7 +15,44 @@ This will show us what advantages Kpt has over other resource management tools.
 
 The first step in consuming a Kpt package is to `get` it.
 
-In an empty directory, run `kpt pkg get `
+In an empty directory, run
+```bash
+$ kpt pkg get https://github.com/seek-oss/kpt-functions/examples/tutorial/sample-package tutorial-package
+fetching package "examples/tutorial/sample-package" from "https://github.com/seek-oss/kpt-functions" to "tutorial-package"
+```
+This fetches a Kpt package from the specified Git repository into the local directory `tutorial-package`.
+Let's take a look at the files we got:
+* `Kptfile`: this is the main configuration file used by Kpt.
+* `deployment.yaml`: this is a standard Kubernetes manifest file, but with some annotations added by Kpt.
+* `README.md`
+
+This sample Kpt package deploys a deployment of the httpbin application.
+However because it is a Kpt package, we can use the Kpt CLI to customize some aspects of this application.
+The options we have for customization are:
+* Customizing the `owner` metadata of the application
+* Customizing the number of replicas that are deployed
+* Customizing the image tag of httpbin that is deployed
+We can discover the values available to us for customization by running
+```bash
+$ kpt cfg list-setters tutorial-package
+tutorial-package/
+    NAME           VALUE         SET BY   DESCRIPTION   COUNT   REQUIRED   IS SET
+  image-tag   latest                                    1       No         Yes
+  owner       my-team                                   2       No         Yes
+  replicas    2                                         1       No         Yes
+```
+
+In order to set these values, we can run the following
+```bash
+$ kpt cfg set tutorial-package replicas 5
+sample-package/
+set 1 field(s) of setter "replicas" to value "5"
+```
+
+Observe that Kpt has updated the `Kptfile` as well as the `deployment.yaml` to reflect your setting of the values.
+You can set the other setters similarly.
+
+Because Kpt uses annotations inside of YAML comments, the `deployment.yaml` file can be deployed as is.
 
 ## 3. Authoring packages
 

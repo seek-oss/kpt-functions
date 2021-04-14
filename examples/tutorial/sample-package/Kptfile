@@ -10,13 +10,13 @@ openAPI:
       x-k8s-cli:
         setter:
           name: replicas
-          value: "5"
+          value: "2"
           isSet: true
     io.k8s.cli.setters.owner:
       x-k8s-cli:
         setter:
           name: owner
-          value: a-different-team
+          value: my-team
           isSet: true
     io.k8s.cli.substitutions.image:
       x-k8s-cli:
@@ -30,5 +30,5 @@ openAPI:
       x-k8s-cli:
         setter:
           name: image-tag
-          value: 1.2.3
+          value: latest
           isSet: true
