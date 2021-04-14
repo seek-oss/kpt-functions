@@ -160,7 +160,15 @@ as root. To work around this, run the following from your host machine:
 docker run -it --privileged --pid=host debian nsenter -t 1 -m -u -n -i sh -c 'chmod o+w /run/host-services/ssh-auth.sock'
 ```
 
-This didn't work one day, and then did the next day. I don't know why.
+Ensure that your local ssh agent is running and has loaded your ssh keys.
+
+```
+$ ssh-add -l
+4096 SHA256:<public-key-fingerprint> nskoufis@seek.com.au (RSA)
+```
+
+If this command shows no identities, try loading identities using `ssh-add -K`.
+The `-K` option instructs ssh-agent to store the passphrase for your keyfile in the Mac OS keychain.
 
 ## Argument reference
 
