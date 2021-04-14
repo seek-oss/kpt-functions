@@ -4,11 +4,11 @@ This tutorial serves as an introduction to the two main Kpt workflows: package a
 Understanding these two workflows will give you an appreciation for Kpt's utility as a Kubernetes resource management
 system.
 
-## 1. Kpt setup
+## Kpt setup
 
 Follow the [Kpt installation documentation](https://googlecontainertools.github.io/kpt/installation/) to install Kpt.
 
-## 2. Consuming a package
+## Consuming a package
 
 Before we _author_ Kpt packages, we will _consume_ Kpt packages.
 This will show us what advantages Kpt has over other resource management tools.
@@ -54,7 +54,7 @@ You can set the other setters similarly.
 
 Because Kpt uses annotations inside of YAML comments, the `deployment.yaml` file can be deployed as is.
 
-## 3. Authoring packages
+## Authoring packages
 
 Now we will learn how to create our own Kpt packages.
 We will be re-creating the Kpt package we consumed in the previous section.
