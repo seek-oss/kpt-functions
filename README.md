@@ -3,6 +3,8 @@
 Opinionated [Kpt](https://googlecontainertools.github.io/kpt/) [functions](https://googlecontainertools.github.io/kpt/guides/producer/functions/)
 in use at Seek.
 
+These extend the functionality of Kpt to add features that are currently missing or domain specific.
+
 🚧 Note: these are under heavy development
 
 ## Current function library
