@@ -5,6 +5,10 @@ in use at Seek.
 
 These extend the functionality of Kpt to add features that are currently missing or domain specific.
 
+If you're new to Kpt, we recommend following our [Kpt tutorial](./examples/tutorial/README.md).
+This tutorial will take you through the basic Kpt workflows, which will serve as a basis for understanding the utility
+of the functions in this repo.
+
 🚧 Note: these are under heavy development
 
 ## Current function library

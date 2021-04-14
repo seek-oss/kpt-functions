@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sample-deploy
+  namespace: sample
+  labels:
+    app: sample-deploy
+    owner: a-different-team # {"$kpt-set":"owner"}
+spec:
+  replicas: 5 # {"$kpt-set":"replicas"}
+  selector:
+    matchLabels:
+      app: sample-deploy
+  template:
+    metadata:
+      labels:
+        app: sample-deploy
+        owner: a-different-team # {"$kpt-set":"owner"}
+    spec:
+      containers:
+      - name: httpbin
+        image: kennethreitz/httpbin:1.2.3 # {"$kpt-set":"image"}
