@@ -17,7 +17,7 @@ jobs:
           SHFMT_OPTS: -i 2 -ci -sr -bn
         with:
           sh_checker_comment: false
-          sh_check_exclude: "vendor"
+          sh_checker_exclude: "vendor"
   test:
     name: test
     runs-on: ubuntu-latest
