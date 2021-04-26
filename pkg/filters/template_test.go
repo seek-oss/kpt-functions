@@ -64,7 +64,7 @@ items:
 		Writer: output,
 	}
 
-  filter := &TemplateFilter{}
+	filter := &TemplateFilter{}
 
 	if err := framework.Execute(newProcessor(filter), rw); err != nil {
 		fatalError(t, err)
@@ -206,7 +206,7 @@ items:
 		Writer: output,
 	}
 
-  filter := &TemplateFilter{}
+	filter := &TemplateFilter{}
 
 	if err := framework.Execute(newProcessor(filter), rw); err != nil {
 		fatalError(t, err)

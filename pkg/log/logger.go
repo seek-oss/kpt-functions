@@ -1,8 +1,8 @@
 package log
 
 import (
-  "fmt"
-  "os"
+	"fmt"
+	"os"
 	"strings"
 	"time"
 

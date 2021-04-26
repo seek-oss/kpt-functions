@@ -1,22 +1,22 @@
 package filters
 
 import (
-  "context"
-  "crypto/sha256"
-  "encoding/hex"
-  "net/url"
-  "os"
-  "path/filepath"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"net/url"
+	"os"
+	"path/filepath"
 
-  "github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 
-  "github.com/GoogleContainerTools/kpt/pkg/kptfile"
-  "github.com/go-git/go-git/v5"
-  "github.com/go-git/go-git/v5/plumbing"
-  "github.com/rs/zerolog"
-  "sigs.k8s.io/kustomize/kyaml/errors"
-  "sigs.k8s.io/kustomize/kyaml/kio"
-  "sigs.k8s.io/kustomize/kyaml/yaml"
+	"github.com/GoogleContainerTools/kpt/pkg/kptfile"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/rs/zerolog"
+	"sigs.k8s.io/kustomize/kyaml/errors"
+	"sigs.k8s.io/kustomize/kyaml/kio"
+	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
 const (
@@ -88,10 +88,10 @@ type Variable struct {
 type AuthMethod string
 
 const (
-  AuthMethodKeyFile AuthMethod = "keyFile"
-  AuthMethodKeySecret AuthMethod = "keySecret"
-  AuthMethodSSHAgent AuthMethod = "sshAgent"
-  AuthMethodNone AuthMethod = "none"
+	AuthMethodKeyFile   AuthMethod = "keyFile"
+	AuthMethodKeySecret AuthMethod = "keySecret"
+	AuthMethodSSHAgent  AuthMethod = "sshAgent"
+	AuthMethodNone      AuthMethod = "none"
 )
 
 // ClusterPackagesFilter defines a kio.Filter that processes ClusterPackages custom resources.
@@ -215,43 +215,43 @@ func (f *ClusterPackagesFilter) fetchPackage(ctx context.Context, pkg *Package) 
 	if !isCached {
 		f.Logger.Debug().Msgf("Cloning repository %s to %s", pkg.Git.Repo, repoDir)
 
-    var auth ssh.AuthMethod
+		var auth ssh.AuthMethod
 
 		switch f.AuthMethod {
-    case AuthMethodKeyFile:
-      auth, err = ssh.NewPublicKeys("git", f.GitPrivateKey, "")
-      if err != nil {
-        return nil, errors.WrapPrefixf(err, "error retrieving Git private key information")
-      }
+		case AuthMethodKeyFile:
+			auth, err = ssh.NewPublicKeys("git", f.GitPrivateKey, "")
+			if err != nil {
+				return nil, errors.WrapPrefixf(err, "error retrieving Git private key information")
+			}
 
-    case AuthMethodSSHAgent:
-      if os.Getenv(AuthSockEnvVar) == "" {
-        return nil, errors.Errorf("Env variable %s must be defined to use ssh agent auth", AuthSockEnvVar)
-      }
-      auth, err = ssh.NewSSHAgentAuth("git")
-      if err != nil {
-        return nil, errors.WrapPrefixf(err, "error using ssh agent auth")
-      }
+		case AuthMethodSSHAgent:
+			if os.Getenv(AuthSockEnvVar) == "" {
+				return nil, errors.Errorf("Env variable %s must be defined to use ssh agent auth", AuthSockEnvVar)
+			}
+			auth, err = ssh.NewSSHAgentAuth("git")
+			if err != nil {
+				return nil, errors.WrapPrefixf(err, "error using ssh agent auth")
+			}
 
-    default:
-      repoUrl, err := url.Parse(pkg.Git.Repo)
-      if err != nil {
-        return nil, errors.WrapPrefixf(err, "failed to parse repo URL")
-      }
+		default:
+			repoUrl, err := url.Parse(pkg.Git.Repo)
+			if err != nil {
+				return nil, errors.WrapPrefixf(err, "failed to parse repo URL")
+			}
 
-      if repoUrl.Scheme != HTTPSScheme {
-        return nil, errors.Errorf("got invalid scheme %s for anonymous authentication, use https scheme instead", repoUrl.Scheme)
-      }
-      auth = nil
-    }
+			if repoUrl.Scheme != HTTPSScheme {
+				return nil, errors.Errorf("got invalid scheme %s for anonymous authentication, use https scheme instead", repoUrl.Scheme)
+			}
+			auth = nil
+		}
 
-    cloneOptions := &git.CloneOptions{
-      URL: pkg.Git.Repo,
-    }
+		cloneOptions := &git.CloneOptions{
+			URL: pkg.Git.Repo,
+		}
 
-    if auth != nil {
-      cloneOptions.Auth = auth
-    }
+		if auth != nil {
+			cloneOptions.Auth = auth
+		}
 
 		repo, err = git.PlainCloneContext(ctx, repoDir, false, cloneOptions)
 		if err != nil {
