@@ -239,7 +239,7 @@ func (f *ClusterPackagesFilter) fetchPackage(ctx context.Context, pkg *Package) 
         return nil, errors.WrapPrefixf(err, "failed to parse repo URL")
       }
 
-      if repoUrl.Scheme != HTTPSScheme {
+      if repoUrl.Scheme != HTTPSScheme && repoUrl.Scheme != "" {
         return nil, errors.Errorf("got invalid scheme %s for anonymous authentication, use https scheme instead", repoUrl.Scheme)
       }
       auth = nil
