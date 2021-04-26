@@ -1,11 +1,11 @@
 package filters
 
 import (
-  "bytes"
-  "sigs.k8s.io/kustomize/kyaml/fn/framework"
-  "sigs.k8s.io/kustomize/kyaml/fn/framework/frameworktestutil"
-  "sigs.k8s.io/kustomize/kyaml/kio"
-  "testing"
+	"bytes"
+	"sigs.k8s.io/kustomize/kyaml/fn/framework"
+	"sigs.k8s.io/kustomize/kyaml/fn/framework/frameworktestutil"
+	"sigs.k8s.io/kustomize/kyaml/kio"
+	"testing"
 )
 
 func TestHashDependencyFilter(t *testing.T) {
