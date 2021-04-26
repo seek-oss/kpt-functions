@@ -3,7 +3,7 @@ VERSION ?= latest
 build_dir     := target
 functions_dir := functions
 functions     := $(shell ls cmd)
-sh_src        := $(shell find . -type f -name '*.sh')
+sh_src        := $(shell find . -type f -name '*.sh' -not -path "./vendor/*")
 
 # Variables consumed by scripts
 export MAKE
@@ -30,8 +30,12 @@ clean:
 
 .PHONY: lint
 lint:
-	@$(call banner,Running golangci-lint)
-	@golangci-lint run
+#	@$(call banner,Running golangci-lint)
+#	@golangci-lint run
+	@$(call banner,Running Shfmt)
+	@shfmt -i 2 -ci -sr -bn -d $(sh_src)
+	@$(call banner,Running Shellcheck)
+	@shellcheck $(sh_src)
 
 .PHONY: test
 test:

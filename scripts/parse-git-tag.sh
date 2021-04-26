@@ -21,9 +21,8 @@ function_string="function"
 version_string="version"
 
 # If GIT_TAG is not set, just skip processing.
-if [[ -z "${GIT_TAG+x}" ]];
-then
-  2>&1 echo "Error: GIT_TAG unset"
+if [[ -z "${GIT_TAG+x}" ]]; then
+  echo 2>&1 "Error: GIT_TAG unset"
   exit 1
 fi
 
@@ -40,5 +39,5 @@ if [[ "${extract_type}" == "${function_string}" ]]; then
   exit 0
 fi
 
-2>&1 echo "Error: Invalid extraction type, got ${extract_type}, expected function or version"
+echo 2>&1 "Error: Invalid extraction type, got ${extract_type}, expected function or version"
 exit 1
