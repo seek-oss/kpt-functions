@@ -12,8 +12,12 @@ jobs:
           version: latest
           args: --timeout 2m0s
       - name: Lint shell scripts
-        run: |
-          make lint-shell
+        uses: luizm/action-sh-checker@v0.1.12
+        env:
+          SHFMT_OPTS: -i 2 -ci -sr -bn
+        with:
+          sh_checker_comment: false
+          sh_check_exclude: "vendor"
   test:
     name: test
     runs-on: ubuntu-latest
