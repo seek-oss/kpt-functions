@@ -11,6 +11,9 @@ jobs:
         with:
           version: latest
           args: --timeout 2m0s
+      - name: Lint shell scripts
+        run: |
+          make lint-shell
   test:
     name: test
     runs-on: ubuntu-latest

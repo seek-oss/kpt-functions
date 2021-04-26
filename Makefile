@@ -28,10 +28,13 @@ clean:
 	@$(call banner,Cleaning)
 	rm -rf ./$(build_dir)
 
-.PHONY: lint
-lint:
-#	@$(call banner,Running golangci-lint)
-#	@golangci-lint run
+.PHONY: lint-go
+lint-go:
+	@$(call banner,Running golangci-lint)
+	@golangci-lint run
+
+.PHONY: lint-shell
+lint-shell:
 	@$(call banner,Running Shfmt)
 	@shfmt -i 2 -ci -sr -bn -d $(sh_src)
 	@$(call banner,Running Shellcheck)
