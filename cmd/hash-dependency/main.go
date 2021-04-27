@@ -1,26 +1,26 @@
 package main
 
 import (
-  "github.com/seek-oss/kpt-functions/pkg/log"
-  "github.com/seek-oss/kpt-functions/pkg/util"
-  "sigs.k8s.io/kustomize/kyaml/errors"
+	"github.com/seek-oss/kpt-functions/pkg/log"
+	"github.com/seek-oss/kpt-functions/pkg/util"
+	"sigs.k8s.io/kustomize/kyaml/errors"
 
-  v1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 
-  "github.com/seek-oss/kpt-functions/pkg/filters"
+	"github.com/seek-oss/kpt-functions/pkg/filters"
 
-  kyaml "sigs.k8s.io/kustomize/kyaml/yaml"
+	kyaml "sigs.k8s.io/kustomize/kyaml/yaml"
 
-  "sigs.k8s.io/kustomize/kyaml/fn/framework"
-  "sigs.k8s.io/kustomize/kyaml/kio"
+	"sigs.k8s.io/kustomize/kyaml/fn/framework"
+	"sigs.k8s.io/kustomize/kyaml/kio"
 
-  "github.com/rs/zerolog"
+	"github.com/rs/zerolog"
 )
 
 const (
-	logLevelFunctionArg     = "logLevel"
+	logLevelFunctionArg = "logLevel"
 
-	defaultLogLevel   = zerolog.InfoLevel
+	defaultLogLevel = zerolog.InfoLevel
 )
 
 // logger is the configured zerolog Logger instance.
@@ -28,7 +28,7 @@ var logger zerolog.Logger
 
 // Entry point for the sync custom Kpt function.
 func main() {
-  logger = log.GetLogger(defaultLogLevel)
+	logger = log.GetLogger(defaultLogLevel)
 	if err := realMain(); err != nil {
 		logger.Fatal().Err(err).Msgf("Error hashing dependencies")
 	}
@@ -68,4 +68,3 @@ func newProcessor() framework.ResourceListProcessor {
 
 	return framework.SimpleProcessor{Config: &cm, Filter: filter}
 }
-

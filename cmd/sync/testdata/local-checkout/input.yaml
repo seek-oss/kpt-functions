@@ -9,10 +9,8 @@ items:
       baseDir: .
       packages:
         - name: sample
-          git:
-            repo: ./local-repo
+          local:
             directory: sample
-            ref: a94abbc439b84a9d82ec826753b1ced4531d8ba8
 functionConfig:
   kind: ConfigMap
   data: {}

@@ -1,22 +1,26 @@
 package filters
 
 import (
-  "context"
-  "crypto/sha256"
-  "encoding/hex"
-  "net/url"
-  "os"
-  "path/filepath"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"net/url"
+	"os"
+	"path"
+	"path/filepath"
 
-  "github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 
-  "github.com/GoogleContainerTools/kpt/pkg/kptfile"
-  "github.com/go-git/go-git/v5"
-  "github.com/go-git/go-git/v5/plumbing"
-  "github.com/rs/zerolog"
-  "sigs.k8s.io/kustomize/kyaml/errors"
-  "sigs.k8s.io/kustomize/kyaml/kio"
-  "sigs.k8s.io/kustomize/kyaml/yaml"
+	"github.com/GoogleContainerTools/kpt/pkg/kptfile"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/rs/zerolog"
+	"sigs.k8s.io/kustomize/kyaml/errors"
+	"sigs.k8s.io/kustomize/kyaml/kio"
+	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
 const (
@@ -64,6 +68,12 @@ type ClusterPackagesSpec struct {
 	Packages []Package `yaml:"packages,omitempty"`
 }
 
+// LocalPackage defines a local Kpt package location.
+type LocalPackage struct {
+	// Directory specifies the relative location of the Kpt package
+	Directory string `yaml:"directory"`
+}
+
 // Package defines a Kpt package dependency.
 type Package struct {
 	// Name specifies the name of the package. This name will be combined with the ClusterPackagesSpec.BaseDir
@@ -71,6 +81,8 @@ type Package struct {
 	Name string `yaml:"name,omitempty"`
 	// Git specifies the upstream Git reference information for the package.
 	Git kptfile.Git `yaml:"git,omitempty"`
+	// Local specifies the location of a local Kpt package
+	Local LocalPackage `yaml:"local,omitempty"`
 	// Variables specifies the list of package-level variable definitions. In the case that a package has a setter
 	// whose value is specified by both cluster-level and package-level variables, the package-level value will be used.
 	Variables []Variable `yaml:"variables,omitempty"`
@@ -88,10 +100,10 @@ type Variable struct {
 type AuthMethod string
 
 const (
-  AuthMethodKeyFile AuthMethod = "keyFile"
-  AuthMethodKeySecret AuthMethod = "keySecret"
-  AuthMethodSSHAgent AuthMethod = "sshAgent"
-  AuthMethodNone AuthMethod = "none"
+	AuthMethodKeyFile   AuthMethod = "keyFile"
+	AuthMethodKeySecret AuthMethod = "keySecret"
+	AuthMethodSSHAgent  AuthMethod = "sshAgent"
+	AuthMethodNone      AuthMethod = "none"
 )
 
 // ClusterPackagesFilter defines a kio.Filter that processes ClusterPackages custom resources.
@@ -191,92 +203,111 @@ func (f *ClusterPackagesFilter) fetchClusterResources(ctx context.Context, res *
 }
 
 func (f *ClusterPackagesFilter) fetchPackage(ctx context.Context, pkg *Package) ([]*yaml.RNode, error) {
-	// The repository for the specified package will be cached at ${cacheDir}/${checksum} where
-	// checksum is the sha256 sum of the repository URI.
-	checksum := sha256.Sum256([]byte(pkg.Git.Repo))
-	repoDir := filepath.Join(f.CacheDir, hex.EncodeToString(checksum[:]))
+	var repoDir string
+	var subDirectory string
 
-	// Determine whether the repository has already been cloned and cached.
-	isCached := false
-	stat, err := os.Stat(repoDir)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return nil, errors.WrapPrefixf(err, "error checking for directory %s", repoDir)
+	if pkg.Local.Directory != "" {
+		repoDir = filepath.Join(f.CacheDir, pkg.Local.Directory)
+		subDirectory = "."
+		workdir, err := os.Getwd()
+		if err != nil {
+			return nil, errors.WrapPrefixf(err, "error getting workdir")
+		}
+		sourceDir := filepath.Join(workdir, pkg.Local.Directory)
+		err = copyDir(sourceDir, repoDir)
+		if err != nil {
+			return nil, errors.WrapPrefixf(err, "error copying source %s to dest %s", sourceDir, repoDir)
 		}
 	} else {
-		if stat.IsDir() {
-			isCached = true
+		// The repository for the specified package will be cached at ${cacheDir}/${checksum} where
+		// checksum is the sha256 sum of the repository URI.
+		checksum := sha256.Sum256([]byte(pkg.Git.Repo))
+		repoDir = filepath.Join(f.CacheDir, hex.EncodeToString(checksum[:]))
+
+		// Determine whether the repository has already been cloned and cached.
+		isCached := false
+		stat, err := os.Stat(repoDir)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return nil, errors.WrapPrefixf(err, "error checking for directory %s", repoDir)
+			}
 		} else {
-			return nil, errors.Errorf("unexpected non-directory %s exists", repoDir)
+			if stat.IsDir() {
+				isCached = true
+			} else {
+				return nil, errors.Errorf("unexpected non-directory %s exists", repoDir)
+			}
 		}
-	}
 
-	var repo *git.Repository
-	if !isCached {
-		f.Logger.Debug().Msgf("Cloning repository %s to %s", pkg.Git.Repo, repoDir)
+		var repo *git.Repository
+		if !isCached {
+			f.Logger.Debug().Msgf("Cloning repository %s to %s", pkg.Git.Repo, repoDir)
 
-    var auth ssh.AuthMethod
+			var auth ssh.AuthMethod
 
-		switch f.AuthMethod {
-    case AuthMethodKeyFile:
-      auth, err = ssh.NewPublicKeys("git", f.GitPrivateKey, "")
-      if err != nil {
-        return nil, errors.WrapPrefixf(err, "error retrieving Git private key information")
-      }
+			switch f.AuthMethod {
+			case AuthMethodKeyFile:
+				auth, err = ssh.NewPublicKeys("git", f.GitPrivateKey, "")
+				if err != nil {
+					return nil, errors.WrapPrefixf(err, "error retrieving Git private key information")
+				}
 
-    case AuthMethodSSHAgent:
-      if os.Getenv(AuthSockEnvVar) == "" {
-        return nil, errors.Errorf("Env variable %s must be defined to use ssh agent auth", AuthSockEnvVar)
-      }
-      auth, err = ssh.NewSSHAgentAuth("git")
-      if err != nil {
-        return nil, errors.WrapPrefixf(err, "error using ssh agent auth")
-      }
+			case AuthMethodSSHAgent:
+				if os.Getenv(AuthSockEnvVar) == "" {
+					return nil, errors.Errorf("Env variable %s must be defined to use ssh agent auth", AuthSockEnvVar)
+				}
+				auth, err = ssh.NewSSHAgentAuth("git")
+				if err != nil {
+					return nil, errors.WrapPrefixf(err, "error using ssh agent auth")
+				}
 
-    default:
-      repoUrl, err := url.Parse(pkg.Git.Repo)
-      if err != nil {
-        return nil, errors.WrapPrefixf(err, "failed to parse repo URL")
-      }
+			default:
+				repoUrl, err := url.Parse(pkg.Git.Repo)
+				if err != nil {
+					return nil, errors.WrapPrefixf(err, "failed to parse repo URL")
+				}
 
-      if repoUrl.Scheme != HTTPSScheme && repoUrl.Scheme != "" {
-        return nil, errors.Errorf("got invalid scheme %s for anonymous authentication, use https scheme instead", repoUrl.Scheme)
-      }
-      auth = nil
-    }
+				if repoUrl.Scheme != HTTPSScheme && repoUrl.Scheme != "" {
+					return nil, errors.Errorf("got invalid scheme %s for anonymous authentication, use https scheme instead", repoUrl.Scheme)
+				}
+				auth = nil
+			}
 
-    cloneOptions := &git.CloneOptions{
-      URL: pkg.Git.Repo,
-    }
+			cloneOptions := &git.CloneOptions{
+				URL: pkg.Git.Repo,
+			}
 
-    if auth != nil {
-      cloneOptions.Auth = auth
-    }
+			if auth != nil {
+				cloneOptions.Auth = auth
+			}
 
-		repo, err = git.PlainCloneContext(ctx, repoDir, false, cloneOptions)
+			repo, err = git.PlainCloneContext(ctx, repoDir, false, cloneOptions)
+			if err != nil {
+				return nil, errors.WrapPrefixf(err, "error cloning Git repository %s", pkg.Git.Repo)
+			}
+		} else {
+			f.Logger.Debug().Msgf("Using %s in %s", pkg.Git.Repo, repoDir)
+
+			repo, err = git.PlainOpen(repoDir)
+			if err != nil {
+				return nil, errors.WrapPrefixf(err, "error opening Git repository %s", pkg.Git.Repo)
+			}
+		}
+
+		w, err := repo.Worktree()
 		if err != nil {
-			return nil, errors.WrapPrefixf(err, "error cloning Git repository %s", pkg.Git.Repo)
+			return nil, errors.WrapPrefixf(err, "error obtaining worktree for repository %s", pkg.Git.Repo)
 		}
-	} else {
-		f.Logger.Debug().Msgf("Using %s in %s", pkg.Git.Repo, repoDir)
 
-		repo, err = git.PlainOpen(repoDir)
-		if err != nil {
-			return nil, errors.WrapPrefixf(err, "error opening Git repository %s", pkg.Git.Repo)
+		if err := w.Checkout(&git.CheckoutOptions{Hash: plumbing.NewHash(pkg.Git.Ref)}); err != nil {
+			return nil, errors.WrapPrefixf(err, "error checking out ref %s for repository %s", pkg.Git.Ref, pkg.Git.Repo)
 		}
-	}
 
-	w, err := repo.Worktree()
-	if err != nil {
-		return nil, errors.WrapPrefixf(err, "error obtaining worktree for repository %s", pkg.Git.Repo)
-	}
-
-	if err := w.Checkout(&git.CheckoutOptions{Hash: plumbing.NewHash(pkg.Git.Ref)}); err != nil {
-		return nil, errors.WrapPrefixf(err, "error checking out ref %s for repository %s", pkg.Git.Ref, pkg.Git.Repo)
+		subDirectory = pkg.Git.Directory
 	}
 
 	reader := kio.LocalPackageReader{
-		PackagePath:    filepath.Join(repoDir, pkg.Git.Directory),
+		PackagePath:    filepath.Join(repoDir, subDirectory),
 		MatchFilesGlob: append(kio.DefaultMatch, kptfile.KptFileName),
 	}
 
@@ -286,4 +317,64 @@ func (f *ClusterPackagesFilter) fetchPackage(ctx context.Context, pkg *Package) 
 	}
 
 	return nodes, nil
+}
+
+// copyFile copies a single file from src to dst
+func copyFile(src, dst string) error {
+	var err error
+	var srcfd *os.File
+	var dstfd *os.File
+	var srcinfo os.FileInfo
+
+	if srcfd, err = os.Open(src); err != nil {
+		return err
+	}
+	defer srcfd.Close()
+
+	if dstfd, err = os.Create(dst); err != nil {
+		return err
+	}
+	defer dstfd.Close()
+
+	if _, err = io.Copy(dstfd, srcfd); err != nil {
+		return err
+	}
+	if srcinfo, err = os.Stat(src); err != nil {
+		return err
+	}
+	return os.Chmod(dst, srcinfo.Mode())
+}
+
+// copyDir copies a whole directory recursively
+func copyDir(src string, dst string) error {
+	var err error
+	var fds []os.FileInfo
+	var srcinfo os.FileInfo
+
+	if srcinfo, err = os.Stat(src); err != nil {
+		return err
+	}
+
+	if err = os.MkdirAll(dst, srcinfo.Mode()); err != nil {
+		return err
+	}
+
+	if fds, err = ioutil.ReadDir(src); err != nil {
+		return err
+	}
+	for _, fd := range fds {
+		srcfp := path.Join(src, fd.Name())
+		dstfp := path.Join(dst, fd.Name())
+
+		if fd.IsDir() {
+			if err = copyDir(srcfp, dstfp); err != nil {
+				fmt.Println(err)
+			}
+		} else {
+			if err = copyFile(srcfp, dstfp); err != nil {
+				fmt.Println(err)
+			}
+		}
+	}
+	return nil
 }

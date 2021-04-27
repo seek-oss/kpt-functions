@@ -1,12 +1,12 @@
 package filters
 
 import (
-  "bytes"
-  "github.com/go-errors/errors"
-  "github.com/google/go-cmp/cmp"
-  "sigs.k8s.io/kustomize/kyaml/fn/framework"
-  "sigs.k8s.io/kustomize/kyaml/kio"
-  "testing"
+	"bytes"
+	"github.com/go-errors/errors"
+	"github.com/google/go-cmp/cmp"
+	"sigs.k8s.io/kustomize/kyaml/fn/framework"
+	"sigs.k8s.io/kustomize/kyaml/kio"
+	"testing"
 )
 
 type TestCase struct {
@@ -17,10 +17,10 @@ type TestCase struct {
 }
 
 func TestHashDependencyFilter(t *testing.T) {
-		testCases := []TestCase{
-			{
-				testCase: "Basic replacement",
-				input: `
+	testCases := []TestCase{
+		{
+			testCase: "Basic replacement",
+			input: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -39,7 +39,7 @@ items:
     namespace: example
   data: {}
 `,
-				expectedOutput: `
+			expectedOutput: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -59,10 +59,10 @@ items:
     namespace: example
   data: {}
 `,
-			},
-			{
-				testCase: "Errors when hash target not found",
-				input: `
+		},
+		{
+			testCase: "Errors when hash target not found",
+			input: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -81,11 +81,11 @@ items:
     namespace: example
   data: {}
 `,
-        expectedError: errors.New("wrong number of matches for hash selector. Expected 1, got 0"),
-			},
-      {
-        testCase: "Errors when hash target exists multiple times",
-        input: `
+			expectedError: errors.New("wrong number of matches for hash selector. Expected 1, got 0"),
+		},
+		{
+			testCase: "Errors when hash target exists multiple times",
+			input: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -110,11 +110,11 @@ items:
     namespace: example
   data: {}
 `,
-        expectedError: errors.New("wrong number of matches for hash selector. Expected 1, got 2"),
-      },
-			{
-				testCase: "Recomputes hash when label is already there",
-				input: `
+			expectedError: errors.New("wrong number of matches for hash selector. Expected 1, got 2"),
+		},
+		{
+			testCase: "Recomputes hash when label is already there",
+			input: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -134,7 +134,7 @@ items:
     namespace: example
   data: {}
 `,
-				expectedOutput: `
+			expectedOutput: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -154,10 +154,10 @@ items:
     namespace: example
   data: {}
 `,
-			},
-			{
-				testCase: "Hashes multiple targets",
-				input: `
+		},
+		{
+			testCase: "Hashes multiple targets",
+			input: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -183,7 +183,7 @@ items:
     namespace: example
   data: {}
 `,
-				expectedOutput: `
+			expectedOutput: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -211,10 +211,10 @@ items:
     namespace: example
   data: {}
 `,
-			},
-      {
-        testCase: "Hashes annotations within a Deployment spec",
-        input: `
+		},
+		{
+			testCase: "Hashes annotations within a Deployment spec",
+			input: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -241,7 +241,7 @@ items:
     namespace: example
   data: {}
 `,
-        expectedOutput: `
+			expectedOutput: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -269,10 +269,10 @@ items:
     namespace: example
   data: {}
 `,
-      },
-      {
-        testCase: "Hashes annotations within a Deployment spec and the Deployment metadata",
-        input: `
+		},
+		{
+			testCase: "Hashes annotations within a Deployment spec and the Deployment metadata",
+			input: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -301,7 +301,7 @@ items:
     namespace: example
   data: {}
 `,
-        expectedOutput: `
+			expectedOutput: `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -332,36 +332,36 @@ items:
     namespace: example
   data: {}
 `,
-      },
-		}
+		},
+	}
 
 	for index := range testCases {
 		testCase := testCases[index]
 
 		output := &bytes.Buffer{}
-    rw := &kio.ByteReadWriter{
-      Reader: bytes.NewBufferString(testCase.input),
-      Writer: output,
-    }
+		rw := &kio.ByteReadWriter{
+			Reader: bytes.NewBufferString(testCase.input),
+			Writer: output,
+		}
 
 		filter := &HashDependencyFilter{}
 
-    if err := framework.Execute(newProcessor(filter), rw); err != nil {
-      if testCase.expectedError == nil {
-        fatalError(t, err)
-      }
+		if err := framework.Execute(newProcessor(filter), rw); err != nil {
+			if testCase.expectedError == nil {
+				fatalError(t, err)
+			}
 
-      if diff := cmp.Diff(testCase.expectedError.Error(), err.Error()); diff != "" {
-        t.Fatalf("Test case failed: %s\n(-want +got)\n%s", testCase.testCase, diff)
-      }
-    } else if diff := cmp.Diff(normaliseYAML(testCase.expectedOutput), normaliseYAML(output.String())); diff != "" {
+			if diff := cmp.Diff(testCase.expectedError.Error(), err.Error()); diff != "" {
+				t.Fatalf("Test case failed: %s\n(-want +got)\n%s", testCase.testCase, diff)
+			}
+		} else if diff := cmp.Diff(normaliseYAML(testCase.expectedOutput), normaliseYAML(output.String())); diff != "" {
 			t.Errorf("Test case failed: %s\n(-want +got)\n%s", testCase.testCase, diff)
 		}
 	}
 }
 
 func BenchmarkHashDependencyFilter(b *testing.B) {
-  input := `
+	input := `
 apiVersion: config.kubernetes.io/v1alpha1
 kind: ResourceList
 items:
@@ -391,15 +391,15 @@ items:
   data: {}
 `
 
-    output := &bytes.Buffer{}
-    rw := &kio.ByteReadWriter{
-      Reader: bytes.NewBufferString(input),
-      Writer: output,
-    }
+	output := &bytes.Buffer{}
+	rw := &kio.ByteReadWriter{
+		Reader: bytes.NewBufferString(input),
+		Writer: output,
+	}
 
-    filter := &HashDependencyFilter{}
+	filter := &HashDependencyFilter{}
 
-    for n := 0; n < b.N; n++ {
-      _ = framework.Execute(newProcessor(filter), rw)
-    }
+	for n := 0; n < b.N; n++ {
+		_ = framework.Execute(newProcessor(filter), rw)
+	}
 }
