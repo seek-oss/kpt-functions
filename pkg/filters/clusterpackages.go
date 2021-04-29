@@ -1,22 +1,22 @@
 package filters
 
 import (
-  "context"
-  "crypto/sha256"
-  "encoding/hex"
-  "net/url"
-  "os"
-  "path/filepath"
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"net/url"
+	"os"
+	"path/filepath"
 
-  "github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 
-  "github.com/GoogleContainerTools/kpt/pkg/kptfile"
-  "github.com/go-git/go-git/v5"
-  "github.com/go-git/go-git/v5/plumbing"
-  "github.com/rs/zerolog"
-  "sigs.k8s.io/kustomize/kyaml/errors"
-  "sigs.k8s.io/kustomize/kyaml/kio"
-  "sigs.k8s.io/kustomize/kyaml/yaml"
+	"github.com/GoogleContainerTools/kpt/pkg/kptfile"
+	"github.com/go-git/go-git/v5"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/rs/zerolog"
+	"sigs.k8s.io/kustomize/kyaml/errors"
+	"sigs.k8s.io/kustomize/kyaml/kio"
+	"sigs.k8s.io/kustomize/kyaml/yaml"
 )
 
 const (
@@ -208,7 +208,7 @@ func (f *ClusterPackagesFilter) fetchPackage(ctx context.Context, pkg *Package) 
 		if err != nil {
 			return nil, errors.WrapPrefixf(err, "error getting workdir")
 		}
-    repoDir = filepath.Join(workdir, pkg.Local.Directory)
+		repoDir = filepath.Join(workdir, pkg.Local.Directory)
 	} else {
 		// The repository for the specified package will be cached at ${cacheDir}/${checksum} where
 		// checksum is the sha256 sum of the repository URI.
