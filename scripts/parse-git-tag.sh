@@ -7,7 +7,7 @@ Usage: $(basename "${0}") <function|version>
 
 Extracts version and function information from the current git tag.
 
-Expects a tag of the format 'v1.2.3/function-name'
+Expects a tag of the format 'function-name/v1.2.3'
 
 EOF
   exit 1
@@ -26,8 +26,8 @@ if [[ -z "${GIT_TAG+x}" ]]; then
   exit 1
 fi
 
-tag_version=$(cut -d'/' -f1 <<< "${GIT_TAG}")
-tag_function=$(cut -d'/' -f2 <<< "${GIT_TAG}")
+tag_function=$(cut -d'/' -f1 <<< "${GIT_TAG}")
+tag_version=$(cut -d'/' -f2 <<< "${GIT_TAG}")
 
 if [[ "${extract_type}" == "${version_string}" ]]; then
   echo "${tag_version}"
