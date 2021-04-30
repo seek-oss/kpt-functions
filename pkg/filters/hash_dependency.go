@@ -168,7 +168,9 @@ func sortAnnotations(node *yaml.RNode) error {
 
   for i, key := range sortedAnnotationKeys {
     annotationsValueYNode.Content[2*i].Value = key
+    annotationsValueYNode.Content[2*i].Style = 0
     annotationsValueYNode.Content[2*i+1].Value = annotationMap[key]
+    annotationsValueYNode.Content[2*i+1].Style = 0
   }
   return nil
 }
