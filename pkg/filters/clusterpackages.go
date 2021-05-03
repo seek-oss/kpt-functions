@@ -82,6 +82,8 @@ type Variable struct {
 	Name string `yaml:"name,omitempty"`
 	// Value defines the setter value.
 	Value string `yaml:"value,omitempty"`
+	// ListValues defines the list setter value.
+	ListValues []string `yaml:"listValues,omitempty"`
 }
 
 // AuthMethod is a method of authenticating to Git repositories
@@ -155,7 +157,7 @@ func (f *ClusterPackagesFilter) fetchClusterResources(ctx context.Context, res *
 			pkgFilters = append(pkgFilters, &SetPackageFilter{
 				Name:       v.Name,
 				Value:      v.Value,
-				ListValues: nil,
+				ListValues: v.ListValues,
 				SetBy:      SetByClusterOverride,
 			})
 		}
@@ -164,7 +166,7 @@ func (f *ClusterPackagesFilter) fetchClusterResources(ctx context.Context, res *
 			pkgFilters = append(pkgFilters, &SetPackageFilter{
 				Name:       v.Name,
 				Value:      v.Value,
-				ListValues: nil,
+				ListValues: v.ListValues,
 				SetBy:      SetByPackageOverride,
 			})
 		}
