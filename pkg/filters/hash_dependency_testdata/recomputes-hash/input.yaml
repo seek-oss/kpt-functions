@@ -1,0 +1,18 @@
+apiVersion: config.kubernetes.io/v1alpha1
+kind: ResourceList
+items:
+- apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: example
+    namespace: example
+    annotations:
+      kpt.seek.com/hash-dependency/config-map: ConfigMap/my-config-map
+      ConfigMap/my-config-map: 'abc134'
+  spec: {}
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    name: my-config-map
+    namespace: example
+  data: {}

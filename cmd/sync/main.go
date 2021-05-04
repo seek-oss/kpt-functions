@@ -1,28 +1,28 @@
 package main
 
 import (
-  "github.com/mitchellh/go-homedir"
-  "github.com/seek-oss/kpt-functions/pkg/log"
-  "github.com/seek-oss/kpt-functions/pkg/util"
-  "io/ioutil"
-  "os"
-  "strconv"
+	"github.com/mitchellh/go-homedir"
+	"github.com/seek-oss/kpt-functions/pkg/log"
+	"github.com/seek-oss/kpt-functions/pkg/util"
+	"io/ioutil"
+	"os"
+	"strconv"
 
-  "github.com/aws/aws-sdk-go/aws/session"
-  "github.com/aws/aws-sdk-go/service/secretsmanager"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/secretsmanager"
 
-  "sigs.k8s.io/kustomize/kyaml/errors"
+	"sigs.k8s.io/kustomize/kyaml/errors"
 
-  v1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 
-  "github.com/seek-oss/kpt-functions/pkg/filters"
+	"github.com/seek-oss/kpt-functions/pkg/filters"
 
-  kyaml "sigs.k8s.io/kustomize/kyaml/yaml"
+	kyaml "sigs.k8s.io/kustomize/kyaml/yaml"
 
-  "sigs.k8s.io/kustomize/kyaml/fn/framework"
-  "sigs.k8s.io/kustomize/kyaml/kio"
+	"sigs.k8s.io/kustomize/kyaml/fn/framework"
+	"sigs.k8s.io/kustomize/kyaml/kio"
 
-  "github.com/rs/zerolog"
+	"github.com/rs/zerolog"
 )
 
 const (
@@ -43,7 +43,7 @@ var logger zerolog.Logger
 
 // Entry point for the sync custom Kpt function.
 func main() {
-  logger = log.GetLogger(defaultLogLevel)
+	logger = log.GetLogger(defaultLogLevel)
 	if err := realMain(); err != nil {
 		logger.Fatal().Err(err).Msgf("Error performing sync operation")
 	}
@@ -70,48 +70,48 @@ func newProcessor() framework.ResourceListProcessor {
 		var ok bool
 
 		if authMethod, ok := cm.Data[authMethodFunctionArg]; ok {
-		  switch filters.AuthMethod(authMethod) {
-      case filters.AuthMethodKeyFile:
-        f, ok := cm.Data[gitKeyFileFunctionArg]
-        if !ok {
-          f, err = homedir.Expand(defaultGitKeyFile)
-          if err != nil {
-            return nil, err
-          }
-          logger.Info().Msgf("No Git key specified - falling back to %s", f)
-        }
+			switch filters.AuthMethod(authMethod) {
+			case filters.AuthMethodKeyFile:
+				f, ok := cm.Data[gitKeyFileFunctionArg]
+				if !ok {
+					f, err = homedir.Expand(defaultGitKeyFile)
+					if err != nil {
+						return nil, err
+					}
+					logger.Info().Msgf("No Git key specified - falling back to %s", f)
+				}
 
-        key, err := readGitPrivateKeyFile(f)
-        if err != nil {
-          return nil, err
-        }
+				key, err := readGitPrivateKeyFile(f)
+				if err != nil {
+					return nil, err
+				}
 
-        delegate.GitPrivateKey = key
-        delegate.AuthMethod = filters.AuthMethodKeyFile
-      case filters.AuthMethodKeySecret:
-        if secretID, ok := cm.Data[gitKeySecretFunctionArg]; ok {
-          key, err := readGitPrivateKeySecret(secretID)
-          if err != nil {
-            return nil, err
-          }
+				delegate.GitPrivateKey = key
+				delegate.AuthMethod = filters.AuthMethodKeyFile
+			case filters.AuthMethodKeySecret:
+				if secretID, ok := cm.Data[gitKeySecretFunctionArg]; ok {
+					key, err := readGitPrivateKeySecret(secretID)
+					if err != nil {
+						return nil, err
+					}
 
-          delegate.GitPrivateKey = key
-          delegate.AuthMethod = filters.AuthMethodKeyFile
-        } else {
-          err = errors.Errorf("Auth method was %s but no %s argument was passed", filters.AuthMethodKeySecret, gitKeySecretFunctionArg)
-          return nil, err
-        }
-      case filters.AuthMethodSSHAgent:
-        delegate.AuthMethod = filters.AuthMethodSSHAgent
-      case filters.AuthMethodNone:
-        delegate.AuthMethod = filters.AuthMethodNone
-      default:
-        err = errors.Errorf("Auth method %s is invalid", authMethod)
-        return nil, err
-      }
-    } else {
-      delegate.AuthMethod = filters.AuthMethodNone
-    }
+					delegate.GitPrivateKey = key
+					delegate.AuthMethod = filters.AuthMethodKeyFile
+				} else {
+					err = errors.Errorf("Auth method was %s but no %s argument was passed", filters.AuthMethodKeySecret, gitKeySecretFunctionArg)
+					return nil, err
+				}
+			case filters.AuthMethodSSHAgent:
+				delegate.AuthMethod = filters.AuthMethodSSHAgent
+			case filters.AuthMethodNone:
+				delegate.AuthMethod = filters.AuthMethodNone
+			default:
+				err = errors.Errorf("Auth method %s is invalid", authMethod)
+				return nil, err
+			}
+		} else {
+			delegate.AuthMethod = filters.AuthMethodNone
+		}
 
 		logLevel := defaultLogLevel
 		if v, ok := cm.Data[logLevelFunctionArg]; ok {
