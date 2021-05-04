@@ -1,5 +1,11 @@
 name: Lint, test, build functions and publish to DockerHub
-on: [push, pull_request]
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
 jobs:
   lint:
     name: lint
@@ -11,6 +17,13 @@ jobs:
         with:
           version: latest
           args: --timeout 2m0s
+      - name: Lint shell scripts
+        uses: luizm/action-sh-checker@v0.1.12
+        env:
+          SHFMT_OPTS: -i 2 -ci -sr -bn
+        with:
+          sh_checker_comment: false
+          sh_checker_exclude: "vendor"
   test:
     name: test
     runs-on: ubuntu-latest
@@ -21,10 +34,9 @@ jobs:
           go-version: '^1.16'
       - name: Run tests
         run: make test
-  build:
+  publish-master:
     runs-on: ubuntu-latest
     needs: [lint, test]
-    if: ${{ success() && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/v')) }}
     steps:
     - uses: actions/checkout@v1
     - uses: actions/setup-go@v2
@@ -34,12 +46,24 @@ jobs:
       run: docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin <<< "${{ secrets.DOCKER_API_KEY }}"
     - name: Push image
       run: |
-        if [[ "${{ github.ref }}" =~ ^refs/tags/v(.*) ]] ; then
-          VERSION="${BASH_REMATCH[1]}"
-        elif [[ "${{ github.ref }}" =~ ^refs/heads/master ]] ; then
-          VERSION="latest"
-        else
-          VERSION="unknown"
+        VERSION="latest"
+        if [[ $(./scripts/should-publish.sh master ${{ github.ref }}) ]]; then
+          make publish-all VERSION=${VERSION}
         fi
-
-        make publish-all VERSION=${VERSION}
+  publish-tag:
+    runs-on: ubuntu-latest
+    needs: [ lint, test ]
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '^1.16'
+      - name: Log into registry
+        run: docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin <<< "${{ secrets.DOCKER_API_KEY }}"
+      - name: Push image
+        run: |
+          if [[ $(./scripts/should-publish.sh tag ${{ github.ref }}) ]]; then
+            VERSION=$(./scripts/parse-git-tag.sh version)
+            FUNCTION=$(./scripts/parse-git-tag.sh function)
+            make publish-${FUNCTION} VERSION=${VERSION}
+          fi
