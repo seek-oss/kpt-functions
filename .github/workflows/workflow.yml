@@ -49,7 +49,7 @@ jobs:
     - name: Push image
       run: |
         VERSION="latest"
-        if [[ $(./scripts/should-publish.sh master ${{ github.ref }}) ]]; then
+        if $(./scripts/should-publish.sh master ${{ github.ref }}); then
           make publish-all VERSION=${VERSION}
         fi
   publish-tag:
@@ -64,7 +64,7 @@ jobs:
         run: docker login -u ${{ secrets.DOCKER_USERNAME }} --password-stdin <<< "${{ secrets.DOCKER_API_KEY }}"
       - name: Push image
         run: |
-          if [[ $(./scripts/should-publish.sh tag ${{ github.ref }}) ]]; then
+          if $(./scripts/should-publish.sh tag ${{ github.ref }}); then
             VERSION=$(./scripts/parse-git-tag.sh version)
             FUNCTION=$(./scripts/parse-git-tag.sh function)
             make publish-${FUNCTION} VERSION=${VERSION}
