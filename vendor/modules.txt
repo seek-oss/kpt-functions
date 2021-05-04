@@ -315,8 +315,6 @@ github.com/olekukonko/tablewriter
 github.com/peterbourgon/diskv
 # github.com/pkg/errors v0.9.1
 github.com/pkg/errors
-# github.com/pkg/profile v0.0.0-20170413231811-06b906832ed0
-## explicit
 # github.com/pmezard/go-difflib v1.0.0
 github.com/pmezard/go-difflib/difflib
 # github.com/rs/zerolog v1.21.0
@@ -453,10 +451,6 @@ google.golang.org/protobuf/runtime/protoimpl
 google.golang.org/protobuf/types/known/anypb
 google.golang.org/protobuf/types/known/durationpb
 google.golang.org/protobuf/types/known/timestamppb
-# gopkg.in/airbrake/gobrake.v2 v2.0.9
-## explicit
-# gopkg.in/gemnasium/logrus-airbrake-hook.v2 v2.1.2
-## explicit
 # gopkg.in/inf.v0 v0.9.1
 gopkg.in/inf.v0
 # gopkg.in/warnings.v0 v0.1.2

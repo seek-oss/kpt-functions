@@ -63,6 +63,11 @@ func (f *SetPackageFilter) kptfileSetterFilter() kio.Filter {
 			return node, nil
 		}
 
+		if len(f.ListValues) > 0 {
+			f.Value = f.ListValues[0]
+			f.ListValues = f.ListValues[1:]
+		}
+
 		return setters2.SetOpenAPI{
 			Name:       f.Name,
 			Value:      f.Value,

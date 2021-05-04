@@ -1,0 +1,33 @@
+apiVersion: config.kubernetes.io/v1alpha1
+kind: ResourceList
+items:
+  - apiVersion: kpt.dev/v1alpha1
+    kind: Kptfile
+    metadata:
+      name: test
+    openAPI:
+      definitions:
+        io.k8s.cli.setters.replicas:
+          x-k8s-cli:
+            setter:
+              name: "replicas"
+              value: "3"
+  - apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: nginx-deployment
+    spec:
+      replicas: 3 # {"$kpt-set":"replicas"}
+      selector:
+        matchLabels:
+          app: nginx
+      template:
+        metadata:
+          labels:
+            app: nginx
+        spec:
+          containers:
+          - name: nginx
+            image: nginx:1.14.2
+            ports:
+            - containerPort: 80

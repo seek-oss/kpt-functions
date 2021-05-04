@@ -15,10 +15,7 @@ require (
 	github.com/huandu/xstrings v1.3.2 // indirect
 	github.com/mitchellh/copystructure v1.1.1 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/pkg/profile v0.0.0-20170413231811-06b906832ed0 // indirect
 	github.com/rs/zerolog v1.21.0
-	gopkg.in/airbrake/gobrake.v2 v2.0.9 // indirect
-	gopkg.in/gemnasium/logrus-airbrake-hook.v2 v2.1.2 // indirect
 	k8s.io/api v0.20.4
 	sigs.k8s.io/kustomize/cmd/config v0.9.7
 	sigs.k8s.io/kustomize/kyaml v0.10.15
