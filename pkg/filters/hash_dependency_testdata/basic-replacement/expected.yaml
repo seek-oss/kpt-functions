@@ -7,8 +7,8 @@ items:
     name: example
     namespace: example
     annotations:
+      ConfigMap/my-config-map: dfa6c3c082ad3ee44f29b13328af93f4c00e9438e93f7c8b5a58dd389cd491e6
       kpt.seek.com/hash-dependency: ConfigMap/my-config-map
-      ConfigMap/my-config-map: 'dfa6c3c082ad3ee44f29b13328af93f4c00e9438e93f7c8b5a58dd389cd491e6'
   spec: {}
 - apiVersion: v1
   kind: ConfigMap

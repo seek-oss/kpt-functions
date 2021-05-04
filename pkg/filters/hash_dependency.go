@@ -42,6 +42,11 @@ func (dh *HashDependencyFilter) Filter(input []*yaml.RNode) ([]*yaml.RNode, erro
 			}
 		}
 
+		err = sortAnnotations(node)
+		if err != nil {
+		  return nil, err
+    }
+
 		podSpecSelector := &framework.Selector{
 			Kinds: podSpecKinds,
 		}
@@ -83,7 +88,22 @@ func (dh *HashDependencyFilter) Filter(input []*yaml.RNode) ([]*yaml.RNode, erro
 				}
 				return nil
 			})
+
+      podTemplate, err = node.Pipe(yaml.Lookup("spec", "template"))
+
+      if err != nil {
+        return nil, fmt.Errorf("failed to find spec.template field, possibly malformed spec: %s", err)
+      }
+
+      if podTemplate != nil {
+        err = sortAnnotations(podTemplate)
+      }
+
+			if err != nil {
+			  return nil, err
+      }
 		}
+
 
 		output = append(output, node)
 	}
@@ -129,4 +149,28 @@ func hashDependency(rn *yaml.RNode, nodes []*yaml.RNode, namespace string, hashT
 	}
 
 	return rn, nil
+}
+
+func sortAnnotations(node *yaml.RNode) error {
+  annotationMap, err := node.GetAnnotations()
+  if err != nil {
+    return err
+  }
+  sortedAnnotationKeys := yaml.SortedMapKeys(annotationMap)
+
+  meta := node.Field(yaml.MetadataField)
+  annotationsField := meta.Value.Field(yaml.AnnotationsField)
+  if annotationsField == nil {
+    return nil
+  }
+  annotationsValueYNode := annotationsField.Value.YNode()
+
+
+  for i, key := range sortedAnnotationKeys {
+    annotationsValueYNode.Content[2*i].Value = key
+    annotationsValueYNode.Content[2*i].Style = 0
+    annotationsValueYNode.Content[2*i+1].Value = annotationMap[key]
+    annotationsValueYNode.Content[2*i+1].Style = 0
+  }
+  return nil
 }
