@@ -64,6 +64,12 @@ type ClusterPackagesSpec struct {
 	Packages []Package `yaml:"packages,omitempty"`
 }
 
+// LocalPackage defines a local Kpt package location.
+type LocalPackage struct {
+	// Directory specifies the relative location of the Kpt package
+	Directory string `yaml:"directory"`
+}
+
 // Package defines a Kpt package dependency.
 type Package struct {
 	// Name specifies the name of the package. This name will be combined with the ClusterPackagesSpec.BaseDir
@@ -71,6 +77,8 @@ type Package struct {
 	Name string `yaml:"name,omitempty"`
 	// Git specifies the upstream Git reference information for the package.
 	Git kptfile.Git `yaml:"git,omitempty"`
+	// Local specifies the location of a local Kpt package
+	Local LocalPackage `yaml:"local,omitempty"`
 	// Variables specifies the list of package-level variable definitions. In the case that a package has a setter
 	// whose value is specified by both cluster-level and package-level variables, the package-level value will be used.
 	Variables []Variable `yaml:"variables,omitempty"`
@@ -191,92 +199,106 @@ func (f *ClusterPackagesFilter) fetchClusterResources(ctx context.Context, res *
 }
 
 func (f *ClusterPackagesFilter) fetchPackage(ctx context.Context, pkg *Package) ([]*yaml.RNode, error) {
-	// The repository for the specified package will be cached at ${cacheDir}/${checksum} where
-	// checksum is the sha256 sum of the repository URI.
-	checksum := sha256.Sum256([]byte(pkg.Git.Repo))
-	repoDir := filepath.Join(f.CacheDir, hex.EncodeToString(checksum[:]))
+	var repoDir string
+	var subDirectory string
 
-	// Determine whether the repository has already been cloned and cached.
-	isCached := false
-	stat, err := os.Stat(repoDir)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return nil, errors.WrapPrefixf(err, "error checking for directory %s", repoDir)
+	if pkg.Local.Directory != "" {
+		subDirectory = "."
+		workdir, err := os.Getwd()
+		if err != nil {
+			return nil, errors.WrapPrefixf(err, "error getting workdir")
 		}
+		repoDir = filepath.Join(workdir, pkg.Local.Directory)
 	} else {
-		if stat.IsDir() {
-			isCached = true
+		// The repository for the specified package will be cached at ${cacheDir}/${checksum} where
+		// checksum is the sha256 sum of the repository URI.
+		checksum := sha256.Sum256([]byte(pkg.Git.Repo))
+		repoDir = filepath.Join(f.CacheDir, hex.EncodeToString(checksum[:]))
+
+		// Determine whether the repository has already been cloned and cached.
+		isCached := false
+		stat, err := os.Stat(repoDir)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return nil, errors.WrapPrefixf(err, "error checking for directory %s", repoDir)
+			}
 		} else {
-			return nil, errors.Errorf("unexpected non-directory %s exists", repoDir)
+			if stat.IsDir() {
+				isCached = true
+			} else {
+				return nil, errors.Errorf("unexpected non-directory %s exists", repoDir)
+			}
 		}
-	}
 
-	var repo *git.Repository
-	if !isCached {
-		f.Logger.Debug().Msgf("Cloning repository %s to %s", pkg.Git.Repo, repoDir)
+		var repo *git.Repository
+		if !isCached {
+			f.Logger.Debug().Msgf("Cloning repository %s to %s", pkg.Git.Repo, repoDir)
 
-		var auth ssh.AuthMethod
+			var auth ssh.AuthMethod
 
-		switch f.AuthMethod {
-		case AuthMethodKeyFile:
-			auth, err = ssh.NewPublicKeys("git", f.GitPrivateKey, "")
+			switch f.AuthMethod {
+			case AuthMethodKeyFile:
+				auth, err = ssh.NewPublicKeys("git", f.GitPrivateKey, "")
+				if err != nil {
+					return nil, errors.WrapPrefixf(err, "error retrieving Git private key information")
+				}
+
+			case AuthMethodSSHAgent:
+				if os.Getenv(AuthSockEnvVar) == "" {
+					return nil, errors.Errorf("Env variable %s must be defined to use ssh agent auth", AuthSockEnvVar)
+				}
+				auth, err = ssh.NewSSHAgentAuth("git")
+				if err != nil {
+					return nil, errors.WrapPrefixf(err, "error using ssh agent auth")
+				}
+
+			default:
+				repoUrl, err := url.Parse(pkg.Git.Repo)
+				if err != nil {
+					return nil, errors.WrapPrefixf(err, "failed to parse repo URL")
+				}
+
+				if repoUrl.Scheme != HTTPSScheme && repoUrl.Scheme != "" {
+					return nil, errors.Errorf("got invalid scheme %s for anonymous authentication, use https scheme instead", repoUrl.Scheme)
+				}
+				auth = nil
+			}
+
+			cloneOptions := &git.CloneOptions{
+				URL: pkg.Git.Repo,
+			}
+
+			if auth != nil {
+				cloneOptions.Auth = auth
+			}
+
+			repo, err = git.PlainCloneContext(ctx, repoDir, false, cloneOptions)
 			if err != nil {
-				return nil, errors.WrapPrefixf(err, "error retrieving Git private key information")
+				return nil, errors.WrapPrefixf(err, "error cloning Git repository %s", pkg.Git.Repo)
 			}
+		} else {
+			f.Logger.Debug().Msgf("Using %s in %s", pkg.Git.Repo, repoDir)
 
-		case AuthMethodSSHAgent:
-			if os.Getenv(AuthSockEnvVar) == "" {
-				return nil, errors.Errorf("Env variable %s must be defined to use ssh agent auth", AuthSockEnvVar)
-			}
-			auth, err = ssh.NewSSHAgentAuth("git")
+			repo, err = git.PlainOpen(repoDir)
 			if err != nil {
-				return nil, errors.WrapPrefixf(err, "error using ssh agent auth")
+				return nil, errors.WrapPrefixf(err, "error opening Git repository %s", pkg.Git.Repo)
 			}
-
-		default:
-			repoUrl, err := url.Parse(pkg.Git.Repo)
-			if err != nil {
-				return nil, errors.WrapPrefixf(err, "failed to parse repo URL")
-			}
-
-			if repoUrl.Scheme != HTTPSScheme {
-				return nil, errors.Errorf("got invalid scheme %s for anonymous authentication, use https scheme instead", repoUrl.Scheme)
-			}
-			auth = nil
 		}
 
-		cloneOptions := &git.CloneOptions{
-			URL: pkg.Git.Repo,
-		}
-
-		if auth != nil {
-			cloneOptions.Auth = auth
-		}
-
-		repo, err = git.PlainCloneContext(ctx, repoDir, false, cloneOptions)
+		w, err := repo.Worktree()
 		if err != nil {
-			return nil, errors.WrapPrefixf(err, "error cloning Git repository %s", pkg.Git.Repo)
+			return nil, errors.WrapPrefixf(err, "error obtaining worktree for repository %s", pkg.Git.Repo)
 		}
-	} else {
-		f.Logger.Debug().Msgf("Using %s in %s", pkg.Git.Repo, repoDir)
 
-		repo, err = git.PlainOpen(repoDir)
-		if err != nil {
-			return nil, errors.WrapPrefixf(err, "error opening Git repository %s", pkg.Git.Repo)
+		if err := w.Checkout(&git.CheckoutOptions{Hash: plumbing.NewHash(pkg.Git.Ref)}); err != nil {
+			return nil, errors.WrapPrefixf(err, "error checking out ref %s for repository %s", pkg.Git.Ref, pkg.Git.Repo)
 		}
-	}
 
-	w, err := repo.Worktree()
-	if err != nil {
-		return nil, errors.WrapPrefixf(err, "error obtaining worktree for repository %s", pkg.Git.Repo)
-	}
-
-	if err := w.Checkout(&git.CheckoutOptions{Hash: plumbing.NewHash(pkg.Git.Ref)}); err != nil {
-		return nil, errors.WrapPrefixf(err, "error checking out ref %s for repository %s", pkg.Git.Ref, pkg.Git.Repo)
+		subDirectory = pkg.Git.Directory
 	}
 
 	reader := kio.LocalPackageReader{
-		PackagePath:    filepath.Join(repoDir, pkg.Git.Directory),
+		PackagePath:    filepath.Join(repoDir, subDirectory),
 		MatchFilesGlob: append(kio.DefaultMatch, kptfile.KptFileName),
 	}
 
