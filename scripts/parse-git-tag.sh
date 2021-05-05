@@ -30,8 +30,14 @@ tag_function=$(cut -d'/' -f1 <<< "${GIT_TAG}")
 tag_version=$(cut -d'/' -f2 <<< "${GIT_TAG}")
 
 if [[ "${extract_type}" == "${version_string}" ]]; then
-  echo "${tag_version}"
-  exit 0
+  # If the version starts with a v, omit the leading v
+  if [[ "${tag_version}" == "v"* ]]; then
+    echo "${tag_version:1}"
+    exit 0
+  else
+    echo "${tag_version}"
+    exit 0
+  fi
 fi
 
 if [[ "${extract_type}" == "${function_string}" ]]; then
