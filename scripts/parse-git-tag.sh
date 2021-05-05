@@ -26,12 +26,18 @@ fi
 function_string="function"
 version_string="version"
 
-tag_function=$(cut -d'/' -f1 <<< "${git_ref}")
-tag_version=$(cut -d'/' -f2 <<< "${git_ref}")
+tag_function=$(cut -d'/' -f3 <<< "${git_ref}")
+tag_version=$(cut -d'/' -f4 <<< "${git_ref}")
 
 if [[ "${extract_type}" == "${version_string}" ]]; then
-  echo "${tag_version}"
-  exit 0
+  # If the version starts with a v, omit the leading v
+  if [[ "${tag_version}" == "v"* ]]; then
+    echo "${tag_version:1}"
+    exit 0
+  else
+    echo "${tag_version}"
+    exit 0
+  fi
 fi
 
 if [[ "${extract_type}" == "${function_string}" ]]; then
