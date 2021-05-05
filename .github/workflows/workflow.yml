@@ -65,7 +65,7 @@ jobs:
       - name: Push image
         run: |
           if $(./scripts/should-publish.sh tag ${{ github.ref }}); then
-            VERSION=$(./scripts/parse-git-tag.sh version)
-            FUNCTION=$(./scripts/parse-git-tag.sh function)
+            VERSION=$(./scripts/parse-git-tag.sh version ${{ github.ref }})
+            FUNCTION=$(./scripts/parse-git-tag.sh function ${{ github.ref }})
             make publish-${FUNCTION} VERSION=${VERSION}
           fi
