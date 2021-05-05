@@ -3,31 +3,31 @@ set -euo pipefail
 
 usage() {
   cat << EOF
-Usage: $(basename "${0}") <function|version>
+Usage: $(basename "${0}") <function|version> <git-ref>
 
-Extracts version and function information from the current git tag.
+Extracts version and function information from the provided git ref.
 
-Expects a tag of the format 'function-name/v1.2.3'
+Expects a ref of the format 'refs/tags/function-name/v1.2.3'
 
 EOF
   exit 1
 }
 
-(($# != 1)) && usage
+(($# != 2)) && usage
 
 extract_type="${1}"
+git_ref="${2}"
+
+if [[ "${git_ref}" != "refs/tags/"* ]]; then
+  echo 2>&1 "Error: invalid git ref format. Expected ref that started with refs/tags/, got ${git_ref}"
+  exit 1
+fi
 
 function_string="function"
 version_string="version"
 
-# If GIT_TAG is not set, just skip processing.
-if [[ -z "${GIT_TAG+x}" ]]; then
-  echo 2>&1 "Error: GIT_TAG unset"
-  exit 1
-fi
-
-tag_function=$(cut -d'/' -f1 <<< "${GIT_TAG}")
-tag_version=$(cut -d'/' -f2 <<< "${GIT_TAG}")
+tag_function=$(cut -d'/' -f1 <<< "${git_ref}")
+tag_version=$(cut -d'/' -f2 <<< "${git_ref}")
 
 if [[ "${extract_type}" == "${version_string}" ]]; then
   echo "${tag_version}"
