@@ -26,8 +26,8 @@ fi
 function_string="function"
 version_string="version"
 
-tag_function=$(cut -d'/' -f1 <<< "${git_ref}")
-tag_version=$(cut -d'/' -f2 <<< "${git_ref}")
+tag_function=$(cut -d'/' -f3 <<< "${git_ref}")
+tag_version=$(cut -d'/' -f4 <<< "${git_ref}")
 
 if [[ "${extract_type}" == "${version_string}" ]]; then
   # If the version starts with a v, omit the leading v
