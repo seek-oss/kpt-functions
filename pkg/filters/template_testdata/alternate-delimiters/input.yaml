@@ -1,0 +1,74 @@
+apiVersion: config.kubernetes.io/v1alpha1
+kind: ResourceList
+items:
+- apiVersion: kpt.dev/v1alpha1
+  kind: Kptfile
+  metadata:
+    name: test
+  openAPI:
+    definitions:
+      io.k8s.cli.setters.account-id:
+        type: string
+        x-k8s-cli:
+          setter:
+            name: account-id
+            value: 111222333444
+      io.k8s.cli.setters.region:
+        type: string
+        x-k8s-cli:
+          setter:
+            name: region
+            value: ap-southeast-1
+      io.k8s.cli.setters.domain-names:
+        type: array
+        items:
+          type: string
+        x-k8s-cli:
+          setter:
+            name: domain-names
+            listValues:
+              - "example.com"
+              - "dead.beef"
+      io.k8s.cli.setters.oidc-provider-id:
+        type: string
+        x-k8s-cli:
+          setter:
+            name: oidc-provider-id
+            value: ABCDEFG
+      io.k8s.cli.setters.irsa-policy:
+        type: string
+        x-k8s-cli:
+          setter:
+            name: simple-template
+            value: |-
+              {
+                "SomeField": {{i want this unchanged}}
+                "Version": "2012-10-17",
+                "Statement": [
+                  {
+                    "Effect": "Allow",
+                    "Principal": {
+                      "Federated": 'arn:aws:iam::${value "account-id"}$:oidc-provider/oidc.eks.${value "region"}$.amazonaws.com/id/${value "oidc-provider-id"}$'
+                    },
+                    "Action": "sts:AssumeRoleWithWebIdentity",
+                    "Condition": {
+                      "StringEquals": {
+                        "oidc.eks.${value "region"}$.amazonaws.com/id/${value "oidc-provider-id"}$:sub": "system:serviceaccount:${args 0}$:${if eq nargs 1}$${args 0}$${else}$${args 1}$${end}$"
+                      }
+                    }
+                  }
+                ]
+              }
+- apiVersion: identity.aws.crossplane.io/v1beta1
+  kind: IAMRole
+  metadata:
+    name: cert-manager-role # {"$kpt-set":"role-name"}
+    namespace: cert-manager
+  spec:
+    forProvider:
+      # {"$kpt-template":"true","$kpt-template-left-delimiter":"${","$kpt-template-right-delimiter":"}$"}
+      assumeRolePolicyDocument: |
+        ${render "simple-template" "cert-manager"}$
+    reclaimPolicy: Delete
+    providerRef:
+      name: aws-provider

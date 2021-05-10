@@ -18,9 +18,29 @@ import (
 )
 
 const (
-	templateEnabledKey   = "$kpt-template"
-	templateEnabledValue = "true"
+	templateEnabledKey    = "$kpt-template"
+	templateEnabledValue  = "true"
+	leftDelimiterKey      = "$kpt-template-left-delimiter"
+	rightDelimiterKey     = "$kpt-template-right-delimiter"
+	defaultLeftDelimiter  = "{{"
+	defaultRightDelimiter = "}}"
 )
+
+type delimiter int
+
+const (
+	left  delimiter = iota
+	right           = iota
+)
+
+// TemplateParameters holds the parameters that are declared in the json comment that indicates that templating
+// of a field is required. This allows us to propagate things like the desired delimiters and whether template
+// expansion is enabled, as part of walking the yaml tree.
+type TemplateParameters struct {
+	templatingEnabled bool
+	leftDelimiter     string
+	rightDelimiter    string
+}
 
 // TemplateFilter provides a Kyaml filter that processes Kubernetes resources and  renders the scalar node values
 // as Go templates. The function config for this filter specifies Kptfiles whose setters are read to become the
@@ -34,6 +54,8 @@ type TemplateContext struct {
 	Values map[string]interface{}
 }
 
+type loadFn func(leftDelimiter, rightDelimiter string) (template *gotemplate.Template, templateContext *TemplateContext, error error)
+
 // Filter implements Kyaml's yaml.Filter.
 func (f *TemplateFilter) Filter(nodes []*yaml.RNode) ([]*yaml.RNode, error) {
 	kptfileNodes, err := KptfileFilter().Filter(nodes)
@@ -45,9 +67,8 @@ func (f *TemplateFilter) Filter(nodes []*yaml.RNode) ([]*yaml.RNode, error) {
 		return nil, errors.Errorf("expected a single Kptfile in package but got %d", len(kptfileNodes))
 	}
 
-	template, templateContext, err := f.load(kptfileNodes[0])
-	if err != nil {
-		return nil, err
+	loadFn := func(leftDelimiter, rightDelimiter string) (template *gotemplate.Template, templateContext *TemplateContext, error error) {
+		return f.load(kptfileNodes[0], leftDelimiter, rightDelimiter)
 	}
 
 	notKptfileNodes, err := NotKptfileFilter().Filter(nodes)
@@ -56,7 +77,7 @@ func (f *TemplateFilter) Filter(nodes []*yaml.RNode) ([]*yaml.RNode, error) {
 	}
 
 	for _, node := range notKptfileNodes {
-		if err := f.process(node, template, templateContext); err != nil {
+		if err := f.process(node, loadFn); err != nil {
 			return nil, err
 		}
 	}
@@ -65,13 +86,18 @@ func (f *TemplateFilter) Filter(nodes []*yaml.RNode) ([]*yaml.RNode, error) {
 }
 
 // process processes the templated fields in the specified resource node.
-func (f *TemplateFilter) process(resource *yaml.RNode, template *gotemplate.Template, templateContext *TemplateContext) error {
-	exec := func(v string) (string, error) {
-		tmpl, err := template.Clone()
+func (f *TemplateFilter) process(resource *yaml.RNode, loadFn loadFn) error {
+	exec := func(v, leftDelimiter, rightDelimiter string) (string, error) {
+		temp, templateContext, err := loadFn(leftDelimiter, rightDelimiter)
+		if err != nil {
+			return "", errors.Wrap(err)
+		}
+		tmpl, err := temp.Clone()
 		if err != nil {
 			return "", errors.Wrap(err)
 		}
 
+		tmpl.Delims(leftDelimiter, rightDelimiter)
 		if _, err := tmpl.Parse(v); err != nil {
 			return "", errors.Wrap(err)
 		}
@@ -84,28 +110,41 @@ func (f *TemplateFilter) process(resource *yaml.RNode, template *gotemplate.Temp
 		return buf.String(), nil
 	}
 
-	return f.render(resource, exec, false)
+	return f.render(resource, exec, TemplateParameters{false, defaultLeftDelimiter, defaultRightDelimiter})
 }
 
-type executeTemplate func(string) (string, error)
+type executeTemplate func(string, string, string) (string, error)
 
 // render recursively descends the node tree, performing template rendering on each RHS scalar value.
-func (f *TemplateFilter) render(rn *yaml.RNode, exec executeTemplate, templatingEnabled bool) error {
-	templatingEnabled = templatingEnabled || f.hasEnabledTemplating(rn)
+func (f *TemplateFilter) render(rn *yaml.RNode, exec executeTemplate, templateParameters TemplateParameters) error {
+	templateParameters.templatingEnabled = templateParameters.templatingEnabled || f.hasEnabledTemplating(rn)
+	if templateParameters.leftDelimiter == defaultLeftDelimiter {
+		templateParameters.leftDelimiter = f.getDelimiter(rn, left)
+	}
+	if templateParameters.rightDelimiter == defaultRightDelimiter {
+		templateParameters.rightDelimiter = f.getDelimiter(rn, right)
+	}
 	switch rn.YNode().Kind {
 	case yaml.MappingNode:
 		return rn.VisitFields(func(rn *yaml.MapNode) error {
-			return f.render(rn.Value, exec, templatingEnabled || f.hasEnabledTemplating(rn.Key))
+			templateParameters.templatingEnabled = templateParameters.templatingEnabled || f.hasEnabledTemplating(rn.Key)
+			if templateParameters.leftDelimiter == defaultLeftDelimiter {
+				templateParameters.leftDelimiter = f.getDelimiter(rn.Key, left)
+			}
+			if templateParameters.rightDelimiter == defaultRightDelimiter {
+				templateParameters.rightDelimiter = f.getDelimiter(rn.Key, right)
+			}
+			return f.render(rn.Value, exec, templateParameters)
 		})
 
 	case yaml.SequenceNode:
 		return rn.VisitElements(func(rn *yaml.RNode) error {
-			return f.render(rn, exec, templatingEnabled)
+			return f.render(rn, exec, templateParameters)
 		})
 
 	case yaml.ScalarNode:
-		if templatingEnabled {
-			res, err := exec(rn.YNode().Value)
+		if templateParameters.templatingEnabled {
+			res, err := exec(rn.YNode().Value, templateParameters.leftDelimiter, templateParameters.rightDelimiter)
 			if err != nil {
 				return err
 			}
@@ -117,7 +156,7 @@ func (f *TemplateFilter) render(rn *yaml.RNode, exec executeTemplate, templating
 	return nil
 }
 
-func (f *TemplateFilter) load(kptfile *yaml.RNode) (*gotemplate.Template, *TemplateContext, error) {
+func (f *TemplateFilter) load(kptfile *yaml.RNode, leftDelimiter, rightDelimiter string) (*gotemplate.Template, *TemplateContext, error) {
 	templateContext, err := f.loadTemplateContext(kptfile)
 	if err != nil {
 		return nil, nil, err
@@ -125,7 +164,8 @@ func (f *TemplateFilter) load(kptfile *yaml.RNode) (*gotemplate.Template, *Templ
 
 	template := gotemplate.New("render").
 		Funcs(sprig.TxtFuncMap()).
-		Option("missingkey=error")
+		Option("missingkey=error").
+		Delims(leftDelimiter, rightDelimiter)
 
 	valueFn := func(k string) (interface{}, error) {
 		if v, ok := templateContext.Values[k]; ok {
@@ -270,4 +310,40 @@ func (f *TemplateFilter) hasEnabledTemplating(n *yaml.RNode) bool {
 	}
 
 	return false
+}
+
+// getLeftDelimiter returns the left delimiter specified in the YAML head annotation
+func (f *TemplateFilter) getDelimiter(n *yaml.RNode, delimiter delimiter) string {
+	comments := []string{n.YNode().LineComment, n.YNode().HeadComment}
+	for _, c := range comments {
+		if c == "" {
+			continue
+		}
+
+		m := map[string]string{}
+		err := json.Unmarshal([]byte(strings.TrimLeft(c, "#")), &m)
+		if err != nil {
+			return defaultDelimiter(delimiter)
+		}
+
+		if delimiter == left {
+			if delim, ok := m[leftDelimiterKey]; ok {
+				return delim
+			}
+		} else {
+			if delim, ok := m[rightDelimiterKey]; ok {
+				return delim
+			}
+		}
+	}
+
+	return defaultDelimiter(delimiter)
+}
+
+func defaultDelimiter(delimiter delimiter) string {
+	if delimiter == left {
+		return defaultLeftDelimiter
+	} else {
+		return defaultRightDelimiter
+	}
 }
