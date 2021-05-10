@@ -364,3 +364,6 @@ data:
 As you can see, the `some-other-key` value has not been interpreted as a go template.
 Without custom delimiters, attempting to render this template would error with `function "this" is not defined`,
 as the first word inside the `{{ }}` was interpreted as a function.
+
+Setting of alternate delimiters is 'sticky', in the sense that once you have set alternate delimiters, they will apply
+recursively for any template rendering, and they cannot be reset.
