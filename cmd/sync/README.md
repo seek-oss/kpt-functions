@@ -294,3 +294,76 @@ data:
 ```
 
 Note: It's currently not possible to use Kpt substitutions in templates. This issue is tracked as [issue #15](https://github.com/seek-oss/kpt-functions/issues/15)
+
+### Custom template delimiters
+
+The templating function also supports setting of custom delimiters.
+This is useful if you want to do some templating on a file that already uses go template syntax.
+Using standard delimiters will cause this to error, as our templating function only offers a limited number of
+functions.
+
+Custom delimiters can be set using the `$kpt-template-left-delimiter` and `$kpt-template-right-delimiter` parameters,
+as per the example below:
+```yaml
+# configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: some-name
+  namespace: some-namespace
+data:
+  # {"$kpt-template":"true","$kpt-template-left-delimiter":"${","$kpt-template-right-delimiter":"}$"}
+  my-data.json: |
+    ${render "my-template" "foo" "bar"}$
+
+# config/development/ap-southeast-2/a/packages.yaml
+apiVersion: kpt.seek.com/v1alpha1
+kind: ClusterPackages
+metadata:
+  name: development-a-ap-southeast-2
+spec:
+  baseDir: config/development/ap-southeast-2/a/packages
+  packages:
+    - name: some-application
+      git:
+        repo: git@github.com:seek-oss/packages.git
+        directory: some-application
+        ref: 5fc702d3dd0f46509283cb0bcc4a3327d1ee8b1
+  variables:
+    - name: region
+      value: ap-southeast-2
+    - name: my-template
+      value: |
+        {
+          "region": "${value "region"}$",
+          "first-arg": "${args 0}$",
+          "second-arg": "${args 1}$"
+          "some-other-key": "{{ this will not be interpreted as a go template }}"
+        }
+```
+
+This would be rendered as:
+```yaml
+# configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: some-name
+  namespace: some-namespace
+data:
+  # {"$kpt-template":"true"}
+  my-data.json: |
+    {
+      "region": "ap-southeast-2",
+      "first-arg": "foo",
+      "second-arg": "bar"
+      "some-other-key": "{{ this will not be interpreted as a go template }}"
+    }
+```
+
+As you can see, the `some-other-key` value has not been interpreted as a go template.
+Without custom delimiters, attempting to render this template would error with `function "this" is not defined`,
+as the first word inside the `{{ }}` was interpreted as a function.
+
+Setting of alternate delimiters is 'sticky', in the sense that once you have set alternate delimiters, they will apply
+recursively for any template rendering, and they cannot be reset.
