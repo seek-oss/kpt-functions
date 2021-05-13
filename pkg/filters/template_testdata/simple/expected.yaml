@@ -34,9 +34,11 @@ items:
   metadata:
     name: example1
     namespace: example
-  spec: # {"$kpt-template":"true"}
+  spec:
     foo:
+      # {"$kpt-template":"true"}
       bar: 'ap-southeast-1'
+      # {"$kpt-template":"true"}
       baz:
       - '111222333444'
       - 'dead.beef,example.com'

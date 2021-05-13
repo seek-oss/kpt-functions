@@ -30,6 +30,7 @@ items:
     # {"$kpt-template":"true"}
     some_value: |+
       ! some string
+
     something_else: '{{ $foo.bar this should not be templated }}'
 functionConfig:
   kind: ConfigMap

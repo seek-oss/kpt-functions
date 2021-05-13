@@ -35,9 +35,11 @@ items:
   metadata:
     name: example1
     namespace: example
-  spec: # {"$kpt-template":"true"}
+  spec:
     foo:
+      # {"$kpt-template":"true"}
       bar: '{{value "region"}}'
+      # {"$kpt-template":"true"}
       baz:
         - '{{value "account-id"}}'
         - '{{value "domain-names" | sortAlpha | join ","}}'
