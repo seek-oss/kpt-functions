@@ -1,0 +1,13 @@
+apiVersion: kpt.dev/v1alpha1
+kind: Kptfile
+metadata:
+  name: sample
+packageMetadata:
+  shortDescription: sample description
+openAPI:
+  definitions:
+    io.k8s.cli.setters.template:
+      x-k8s-cli:
+        setter:
+          name: template
+          value: placeholder

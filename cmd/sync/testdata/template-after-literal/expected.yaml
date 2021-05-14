@@ -1,0 +1,37 @@
+apiVersion: config.kubernetes.io/v1alpha1
+kind: ResourceList
+items:
+- apiVersion: kpt.dev/v1alpha1
+  kind: Kptfile
+  metadata:
+    name: sample
+    annotations:
+      config.kubernetes.io/path: sample/Kptfile
+  packageMetadata:
+    shortDescription: sample description
+  openAPI:
+    definitions:
+      io.k8s.cli.setters.template:
+        x-k8s-cli:
+          setter:
+            name: template
+            value: |
+              ! some string
+            setBy: cluster-override
+            isSet: true
+- apiVersion: v1
+  kind: Test
+  metadata:
+    name: test
+    namespace: test
+    annotations:
+      config.kubernetes.io/path: sample/test.yaml
+  spec:
+    # {"$kpt-template":"true"}
+    some_value: |+
+      ! some string
+
+    something_else: '{{ $foo.bar this should not be templated }}'
+functionConfig:
+  kind: ConfigMap
+  data: {}

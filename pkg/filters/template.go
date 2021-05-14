@@ -127,7 +127,7 @@ func (f *TemplateFilter) render(rn *yaml.RNode, exec executeTemplate, templatePa
 	switch rn.YNode().Kind {
 	case yaml.MappingNode:
 		return rn.VisitFields(func(rn *yaml.MapNode) error {
-			templateParameters.templatingEnabled = templateParameters.templatingEnabled || f.hasEnabledTemplating(rn.Key)
+			templateParameters.templatingEnabled = f.hasEnabledTemplating(rn.Key)
 			if templateParameters.leftDelimiter == defaultLeftDelimiter {
 				templateParameters.leftDelimiter = f.getDelimiter(rn.Key, left)
 			}
