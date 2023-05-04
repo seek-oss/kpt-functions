@@ -17,6 +17,14 @@ of the functions in this repo.
 
 [`kpt-hash-dependency`](./cmd/hash-dependency/README.md): A function to force updates to a resource based on the hash of another resource changing.
 
+## Releasing
+
+Releasing a function in this repo means building and pushing a Docker image that contains the function.
+
+To perform a release, create a Github release with a tag of the format `<function-name>/v<semver-version>`.
+For example, to release version `1.2.3` of the `sync` function, tag with `sync/v1.2.3`.
+This will start a Github actions build that will build and push to Dockerhub as `seek/kpt-sync:1.2.3`.
+
 ## License
 
 MIT
