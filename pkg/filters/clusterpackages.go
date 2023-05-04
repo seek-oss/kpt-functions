@@ -292,7 +292,10 @@ func (f *ClusterPackagesFilter) fetchPackage(ctx context.Context, pkg *Package) 
 			return nil, errors.WrapPrefixf(err, "error obtaining worktree for repository %s", pkg.Git.Repo)
 		}
 
-		if err := w.Checkout(&git.CheckoutOptions{Hash: plumbing.NewHash(pkg.Git.Ref)}); err != nil {
+		if err := w.Checkout(&git.CheckoutOptions{
+			Hash:  plumbing.NewHash(pkg.Git.Ref),
+			Force: true,
+		}); err != nil {
 			return nil, errors.WrapPrefixf(err, "error checking out ref %s for repository %s", pkg.Git.Ref, pkg.Git.Repo)
 		}
 
